@@ -653,26 +653,33 @@
                     </div>
                     <div class="action-buttons-row">
                         <el-button @click="copyTextContent" :disabled="textPreviewDialogData.loading">
-                            <font-awesome-icon icon="copy" style="margin-right: 4px;" />
+                            <span style="margin-right: 4px;">📋</span>
                             复制文件内容
                         </el-button>
                         <el-button @click="copyFileLink" :disabled="textPreviewDialogData.loading">
-                            <font-awesome-icon icon="link" style="margin-right: 4px;" />
+                            <span style="margin-right: 4px;">🔗</span>
                             复制下载链接
                         </el-button>
                         <el-button @click="downloadTextFile" :disabled="textPreviewDialogData.loading">
-                            <font-awesome-icon icon="download" style="margin-right: 4px;" />
+                            <span style="margin-right: 4px;">⬇️</span>
                             下载文件
                         </el-button>
                         <el-button @click="copyPreviewLink" :disabled="textPreviewDialogData.loading">
-                            <font-awesome-icon icon="eye" style="margin-right: 4px;" />
+                            <span style="margin-right: 4px;">👁️</span>
                             复制预览链接
                         </el-button>
                         <el-button @click="openInNewTab" :disabled="textPreviewDialogData.loading">
-                            <font-awesome-icon icon="external-link-alt" style="margin-right: 4px;" />
+                            <span style="margin-right: 4px;">🔗</span>
                             新标签页打开
                         </el-button>
                         <el-button @click="closeTextPreviewDialog">关闭</el-button>
+                    </div>
+                    <div class="dialog-stats-row" v-if="!textPreviewDialogData.loading && !textPreviewDialogData.error">
+                        <div class="stats">
+                            <span>📏 共 <strong>{{ textFileStats.lineCount.toLocaleString() }}</strong> 行</span>
+                            <span>📝 共 <strong>{{ textFileStats.charCount.toLocaleString() }}</strong> 字符</span>
+                            <span>💾 文件大小: <strong>{{ textFileStats.formattedSize }}</strong></span>
+                        </div>
                     </div>
                 </div>
             </template>
@@ -840,6 +847,26 @@ computed: {
         set(value) {
             this.$store.commit('setCodeTheme', value);
         }
+    },
+    textFileStats() {
+        const content = this.textPreviewDialogData.content || '';
+        const lineCount = content ? content.split('\n').length : 0;
+        const charCount = content.length;
+        const bytes = content ? new Blob([content]).size : 0;
+
+        const formatBytes = (bytes) => {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        };
+
+        return {
+            lineCount,
+            charCount,
+            formattedSize: formatBytes(bytes)
+        };
     },
     filteredTableData() {
         return this.tableData;
@@ -4219,6 +4246,33 @@ html.dark .mobile-drawer {
     gap: 12px;
     justify-content: flex-end;
     flex-wrap: wrap;
+}
+
+.dialog-stats-row {
+    padding-top: 12px;
+    margin-top: 12px;
+    border-top: 1px solid #3d3d4d;
+}
+
+.dialog-stats-row .stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    font-size: 12px;
+    color: #8b949e;
+}
+
+.dialog-stats-row .stats span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.dialog-stats-row .stats strong {
+    color: #c9d1d9;
+    font-weight: 600;
 }
 
 .text-preview-dialog :deep(.el-dialog__footer) {

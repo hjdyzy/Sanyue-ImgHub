@@ -16,15 +16,15 @@
                 </div>
                 <div class="preview-actions">
                     <el-button @click="copyContent" :disabled="loading">
-                        <font-awesome-icon icon="copy" style="margin-right: 4px;" />
+                        <span style="margin-right: 4px;">📋</span>
                         复制文件内容
                     </el-button>
                     <el-button @click="copyFileLink" :disabled="loading">
-                        <font-awesome-icon icon="link" style="margin-right: 4px;" />
+                        <span style="margin-right: 4px;">🔗</span>
                         复制下载链接
                     </el-button>
                     <el-button @click="downloadFile" :disabled="loading">
-                        <font-awesome-icon icon="download" style="margin-right: 4px;" />
+                        <span style="margin-right: 4px;">⬇️</span>
                         下载文件
                     </el-button>
                 </div>
@@ -42,6 +42,13 @@
             </div>
             <div v-else class="preview-code">
                 <pre><code v-html="highlighted" class="hljs"></code></pre>
+            </div>
+        </div>
+        <div class="preview-footer" v-if="!loading && !error">
+            <div class="stats">
+                <span>📏 共 <strong>{{ lineCount.toLocaleString() }}</strong> 行</span>
+                <span>📝 共 <strong>{{ charCount.toLocaleString() }}</strong> 字符</span>
+                <span>💾 文件大小: <strong>{{ formattedFileSize }}</strong></span>
             </div>
         </div>
     </div>
@@ -131,6 +138,26 @@ export default {
             set(value) {
                 this.$store.commit('setCodeTheme', value);
             }
+        },
+        lineCount() {
+            if (!this.content) return 0;
+            return this.content.split('\n').length;
+        },
+        charCount() {
+            if (!this.content) return 0;
+            return this.content.length;
+        },
+        fileSize() {
+            if (!this.content) return 0;
+            return new Blob([this.content]).size;
+        },
+        formattedFileSize() {
+            const bytes = this.fileSize;
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
     },
     mounted() {
@@ -400,4 +427,38 @@ export default {
 .preview-code .hljs-params { color: #ffb86c; }
 .preview-code .hljs-meta { color: #f8f8f2; }
 .preview-code .hljs-title { color: #50fa7b; }
+
+.preview-footer {
+    background: #161b22;
+    border-top: 1px solid #30363d;
+    padding: 16px 24px;
+    text-align: center;
+    font-size: 12px;
+    color: #8b949e;
+}
+
+.stats {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+}
+
+.stats span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.stats strong {
+    color: #c9d1d9;
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .stats {
+        gap: 16px;
+    }
+}
 </style>
