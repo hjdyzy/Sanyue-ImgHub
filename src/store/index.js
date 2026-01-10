@@ -32,6 +32,8 @@ export default createStore({
     // 深色模式
     useDarkMode: null,
     cusDarkMode: false,
+    // 代码高亮主题
+    codeTheme: 'github-dark',
   },
   getters: {
     userConfig: state => state.userConfig,
@@ -51,6 +53,7 @@ export default createStore({
     useDarkMode: state => state.useDarkMode,
     cusDarkMode: state => state.cusDarkMode,
     storeAutoReUpload: state => state.autoReUpload,
+    codeTheme: state => state.codeTheme,
   },
   mutations: {
     setUserConfig(state, userConfig) {
@@ -98,6 +101,9 @@ export default createStore({
     },
     setStoreAutoReUpload(state, autoReUpload) {
       state.autoReUpload = autoReUpload;
+    },
+    setCodeTheme(state, theme) {
+      state.codeTheme = theme;
     }
   },
   actions: {

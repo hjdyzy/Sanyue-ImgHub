@@ -19,6 +19,9 @@ import './styles/global.css'
 // OverlayScrollbars 悬浮滚动条
 import 'overlayscrollbars/overlayscrollbars.css'
 
+// 动态加载 highlight.js 主题
+import { loadHighlightTheme } from './utils/highlightTheme'
+
 
 library.add(fas);
 
@@ -108,6 +111,9 @@ store.dispatch('fetchUserConfig').then(() => {
     presetSiteTitle(store.getters.userConfig);
     presetSiteIcon(store.state.useDarkMode, store.getters.userConfig);
 
+    // 加载代码高亮主题
+    loadHighlightTheme(store.state.codeTheme);
+
     // 监听 useDarkMode 和 cusDarkMode 的变化
     store.subscribe((mutation, state) => {
         if (mutation.type === 'setUseDarkMode' && store.state.cusDarkMode) {
@@ -123,10 +129,17 @@ store.dispatch('fetchUserConfig').then(() => {
             // 同时更新网站图标
             presetSiteIcon(store.state.useDarkMode, store.getters.userConfig);
         }
+
+        // 监听代码主题变化
+        if (mutation.type === 'setCodeTheme') {
+            loadHighlightTheme(mutation.payload);
+        }
     });
 
     app.use(store).use(router).use(ElementPlus).mount('#app');
 }).catch(error => {
     console.error('Failed to load user configuration:', error);
+    // 即使配置加载失败也要加载默认主题
+    loadHighlightTheme(store.state.codeTheme);
     app.use(store).use(router).use(ElementPlus).use(head).mount('#app');
 })

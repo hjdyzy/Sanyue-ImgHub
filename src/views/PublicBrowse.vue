@@ -90,22 +90,65 @@
           :key="colIndex" 
           class="waterfall-column"
         >
-          <div 
-            v-for="file in column" 
+          <div
+            v-for="file in column"
             :key="file.name"
             class="waterfall-item"
-            @click="openPreview(file)"
+            :class="{ 'text-file-item': isTextFile(file) }"
+            @click="isTextFile(file) ? openTextPreview(file) : openPreview(file)"
+            @mouseenter="handleFileHover(file)"
+            @mouseleave="handleFileLeave(file)"
           >
-            <div class="image-wrapper" :class="{ loaded: file.loaded }">
-              <img 
-                v-if="isImage(file)"
-                :src="getFileUrl(file.name)" 
+            <div class="image-wrapper" :class="{ loaded: file.loaded, 'text-preview': isTextFile(file) }">
+              <!-- 文本文件预览 -->
+              <div v-if="isTextFile(file)" class="text-file-preview">
+                <div class="text-file-header">
+                  <svg class="file-icon" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/>
+                  </svg>
+                  <span class="text-file-name">{{ getFileName(file.name) }}</span>
+                </div>
+
+                <!-- 预览内容区域 -->
+                <div v-if="textPreviewCache[file.name]" class="text-preview-content">
+                  <!-- 加载中 -->
+                  <div v-if="textPreviewCache[file.name].loading" class="text-preview-loading">
+                    <div class="loading-spinner-small"></div>
+                    <span>加载预览...</span>
+                  </div>
+
+                  <!-- 错误 -->
+                  <div v-else-if="textPreviewCache[file.name].error" class="text-preview-error">
+                    <span>预览加载失败</span>
+                  </div>
+
+                  <!-- 代码预览 -->
+                  <div v-else class="text-preview-code">
+                    <pre><code class="hljs" v-html="textPreviewCache[file.name].highlighted"></code></pre>
+                    <div class="text-preview-fade"></div>
+                    <div class="text-preview-more">
+                      <span>点击查看完整内容 →</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 未加载时显示提示 -->
+                <div v-else class="text-preview-placeholder">
+                  <span>悬停预览内容</span>
+                </div>
+              </div>
+
+              <!-- 图片 -->
+              <img
+                v-else-if="isImage(file)"
+                :src="getFileUrl(file.name)"
                 :alt="file.name"
                 loading="lazy"
                 @load="onImageLoad($event, file)"
                 @error="handleImageError"
               />
-              <video 
+              <!-- 视频 -->
+              <video
                 v-else-if="isVideo(file)"
                 :src="getFileUrl(file.name)"
                 muted
@@ -115,10 +158,12 @@
                 @pointerenter="e => e.pointerType === 'mouse' && e.target.play()"
                 @pointerleave="e => e.pointerType === 'mouse' && e.target.pause()"
               ></video>
+              <!-- 音频 -->
               <div v-else-if="isAudio(file)" class="audio-placeholder">
                 <svg class="audio-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
                 <span class="audio-name">{{ getFileName(file.name) }}</span>
               </div>
+              <!-- 其他文件 -->
               <div v-else class="file-placeholder">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/></svg>
                 <span class="file-name">{{ getFileName(file.name) }}</span>
@@ -309,6 +354,31 @@ import { mapGetters } from 'vuex';
 import TransformMedia from '@/components/TransformMedia.vue';
 import ToggleDark from '@/components/ToggleDark.vue';
 import { hardStopAll, installGlobalMediaGuards } from '@/utils/mediaManager';
+import hljs from 'highlight.js/lib/core';
+// 导入常用语言
+import javascript from 'highlight.js/lib/languages/javascript';
+import python from 'highlight.js/lib/languages/python';
+import bash from 'highlight.js/lib/languages/bash';
+import json from 'highlight.js/lib/languages/json';
+import xml from 'highlight.js/lib/languages/xml';
+import css from 'highlight.js/lib/languages/css';
+import sql from 'highlight.js/lib/languages/sql';
+import yaml from 'highlight.js/lib/languages/yaml';
+import markdown from 'highlight.js/lib/languages/markdown';
+import plaintext from 'highlight.js/lib/languages/plaintext';
+
+// 注册语言
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('bash', bash);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('xml', xml);
+hljs.registerLanguage('html', xml);
+hljs.registerLanguage('css', css);
+hljs.registerLanguage('sql', sql);
+hljs.registerLanguage('yaml', yaml);
+hljs.registerLanguage('markdown', markdown);
+hljs.registerLanguage('plaintext', plaintext);
 
 export default {
   name: 'PublicBrowse',
@@ -367,6 +437,27 @@ export default {
       audioSwipeActive: false,
       // 设备类型判断（用 JS 而非纯 CSS，避免全屏时媒体查询失效）
       isMobile: false,
+      // 文本文件预览
+      textPreviewCache: {},     // 缓存文本预览内容 { fileName: { content, highlighted, loading } }
+      hoverTimers: {},          // 悬停计时器 { fileName: timeoutId }
+      TEXT_FILE_EXTENSIONS: [
+        'txt', 'text', 'log', 'md', 'markdown',
+        'conf', 'config', 'cfg', 'cnf', 'ini', 'properties',
+        'sh', 'bash', 'zsh', 'fish', 'bat', 'cmd', 'ps1',
+        'json', 'jsonc', 'json5',
+        'xml', 'html', 'htm', 'xhtml',
+        'css', 'scss', 'sass', 'less',
+        'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs',
+        'yaml', 'yml', 'toml',
+        'py', 'rb', 'php', 'java', 'c', 'cpp', 'h', 'hpp',
+        'go', 'rs', 'swift', 'kt', 'scala',
+        'sql', 'prisma', 'graphql', 'gql',
+        'env', 'gitignore', 'dockerignore', 'editorconfig',
+        'csv', 'tsv', 'dat',
+        'dockerfile', 'makefile', 'rakefile',
+        'vue', 'svelte', 'astro',
+        'pl', 'lua', 'r', 'matlab', 'm'
+      ],
     };
   },
   computed: {
@@ -805,6 +896,125 @@ export default {
     isAudio(file) {
       const ext = file.name.split('.').pop().toLowerCase();
       return ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'ape', 'opus'].includes(ext);
+    },
+
+    isTextFile(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      return this.TEXT_FILE_EXTENSIONS.includes(ext);
+    },
+
+    getLanguageFromExt(fileName) {
+      const ext = fileName.split('.').pop().toLowerCase();
+      const langMap = {
+        'js': 'javascript', 'jsx': 'javascript', 'mjs': 'javascript', 'cjs': 'javascript',
+        'ts': 'javascript', 'tsx': 'javascript',
+        'py': 'python',
+        'sh': 'bash', 'bash': 'bash', 'zsh': 'bash', 'fish': 'bash',
+        'json': 'json', 'jsonc': 'json', 'json5': 'json',
+        'xml': 'xml', 'html': 'html', 'htm': 'html', 'xhtml': 'html',
+        'css': 'css', 'scss': 'css', 'sass': 'css', 'less': 'css',
+        'yaml': 'yaml', 'yml': 'yaml',
+        'md': 'markdown', 'markdown': 'markdown',
+        'sql': 'sql',
+      };
+      return langMap[ext] || 'plaintext';
+    },
+
+    async fetchTextPreview(file) {
+      const fileName = file.name;
+
+      // 如果已经在加载或已加载，直接返回
+      if (this.textPreviewCache[fileName]) {
+        return this.textPreviewCache[fileName];
+      }
+
+      // 设置加载状态
+      this.$set(this.textPreviewCache, fileName, {
+        content: '',
+        highlighted: '',
+        loading: true,
+        error: null
+      });
+
+      try {
+        const response = await fetch(this.getFileUrl(fileName));
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const text = await response.text();
+
+        // 只取前10行
+        const lines = text.split('\n').slice(0, 10);
+        const preview = lines.join('\n');
+
+        // 语法高亮
+        const language = this.getLanguageFromExt(fileName);
+        let highlighted = '';
+        try {
+          highlighted = hljs.highlight(preview, { language }).value;
+        } catch (e) {
+          // 如果高亮失败，使用纯文本
+          highlighted = this.escapeHtml(preview);
+        }
+
+        // 更新缓存
+        this.$set(this.textPreviewCache, fileName, {
+          content: preview,
+          highlighted,
+          loading: false,
+          error: null,
+          hasMore: lines.length >= 10
+        });
+
+        return this.textPreviewCache[fileName];
+      } catch (error) {
+        this.$set(this.textPreviewCache, fileName, {
+          content: '',
+          highlighted: '',
+          loading: false,
+          error: error.message
+        });
+        return this.textPreviewCache[fileName];
+      }
+    },
+
+    escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    },
+
+    handleFileHover(file) {
+      if (!this.isTextFile(file)) return;
+
+      const fileName = file.name;
+
+      // 清除已存在的计时器
+      if (this.hoverTimers[fileName]) {
+        clearTimeout(this.hoverTimers[fileName]);
+      }
+
+      // 设置新的计时器（500ms后加载）
+      this.hoverTimers[fileName] = setTimeout(() => {
+        this.fetchTextPreview(file);
+      }, 500);
+    },
+
+    handleFileLeave(file) {
+      const fileName = file.name;
+
+      // 清除计时器
+      if (this.hoverTimers[fileName]) {
+        clearTimeout(this.hoverTimers[fileName]);
+        delete this.hoverTimers[fileName];
+      }
+    },
+
+    openTextPreview(file) {
+      // 在新标签页打开完整预览
+      const previewUrl = `/preview/${file.name.split('/').join(',')}`;
+      window.open(previewUrl, '_blank');
     },
 
     getFileName(name) {
@@ -2224,4 +2434,302 @@ export default {
   color: rgba(0, 0, 0, 0.7);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
+
+/* ========== 文本文件预览样式 ========== */
+
+/* 文本文件卡片 */
+.text-file-item {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.text-file-item:hover {
+  transform: translateY(-2px);
+}
+
+.image-wrapper.text-preview {
+  min-height: 280px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+}
+
+.text-file-preview {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+}
+
+/* 文件头部 */
+.text-file-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.text-file-header .file-icon {
+  width: 20px;
+  height: 20px;
+  color: #888;
+  flex-shrink: 0;
+}
+
+.text-file-name {
+  font-size: 13px;
+  color: #58a6ff;
+  font-weight: 500;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+/* 预览内容区域 */
+.text-preview-content {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/* 加载状态 */
+.text-preview-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 200px;
+  color: #888;
+  font-size: 12px;
+}
+
+.text-preview-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #d73a49;
+  font-size: 12px;
+}
+
+/* 代码预览 */
+.text-preview-code {
+  position: relative;
+  height: 100%;
+}
+
+.text-preview-code pre {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+.text-preview-code code {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  display: block;
+  padding: 0;
+  background: transparent;
+  color: #c9d1d9;
+}
+
+/* 渐变遮罩 */
+.text-preview-fade {
+  position: absolute;
+  bottom: 30px;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(transparent, #1a1a1a);
+  pointer-events: none;
+}
+
+/* 查看更多提示 */
+.text-preview-more {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  padding: 8px;
+  background: #1a1a1a;
+}
+
+.text-preview-more span {
+  font-size: 11px;
+  color: #58a6ff;
+  font-weight: 500;
+}
+
+/* 未加载占位符 */
+.text-preview-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: #666;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* highlight.js 样式覆盖（暗色主题） */
+.text-preview-code .hljs {
+  background: transparent;
+  color: #c9d1d9;
+}
+
+.text-preview-code .hljs-comment,
+.text-preview-code .hljs-quote {
+  color: #8b949e;
+}
+
+.text-preview-code .hljs-keyword,
+.text-preview-code .hljs-selector-tag,
+.text-preview-code .hljs-subst {
+  color: #ff7b72;
+}
+
+.text-preview-code .hljs-number,
+.text-preview-code .hljs-literal,
+.text-preview-code .hljs-variable,
+.text-preview-code .hljs-template-variable,
+.text-preview-code .hljs-tag .hljs-attr {
+  color: #79c0ff;
+}
+
+.text-preview-code .hljs-string,
+.text-preview-code .hljs-doctag {
+  color: #a5d6ff;
+}
+
+.text-preview-code .hljs-title,
+.text-preview-code .hljs-section,
+.text-preview-code .hljs-selector-id {
+  color: #d2a8ff;
+}
+
+.text-preview-code .hljs-type,
+.text-preview-code .hljs-class .hljs-title {
+  color: #ffa657;
+}
+
+.text-preview-code .hljs-tag,
+.text-preview-code .hljs-name,
+.text-preview-code .hljs-attribute {
+  color: #7ee787;
+}
+
+.text-preview-code .hljs-regexp,
+.text-preview-code .hljs-link {
+  color: #a5d6ff;
+}
+
+.text-preview-code .hljs-symbol,
+.text-preview-code .hljs-bullet {
+  color: #ffa657;
+}
+
+.text-preview-code .hljs-built_in,
+.text-preview-code .hljs-builtin-name {
+  color: #ffa657;
+}
+
+.text-preview-code .hljs-meta {
+  color: #8b949e;
+}
+
+.text-preview-code .hljs-deletion {
+  color: #f85149;
+}
+
+.text-preview-code .hljs-addition {
+  color: #3fb950;
+}
+
+.text-preview-code .hljs-emphasis {
+  font-style: italic;
+}
+
+.text-preview-code .hljs-strong {
+  font-weight: bold;
+}
+
+/* 亮色主题样式覆盖 */
+:root:not(.dark) .image-wrapper.text-preview {
+  background: #ffffff;
+  border-color: #e1e4e8;
+}
+
+:root:not(.dark) .text-file-header {
+  border-bottom-color: #e1e4e8;
+}
+
+:root:not(.dark) .text-file-header .file-icon {
+  color: #666;
+}
+
+:root:not(.dark) .text-file-name {
+  color: #0366d6;
+}
+
+:root:not(.dark) .text-preview-loading,
+:root:not(.dark) .text-preview-placeholder {
+  color: #666;
+}
+
+:root:not(.dark) .text-preview-error {
+  color: #d73a49;
+}
+
+:root:not(.dark) .text-preview-code code {
+  color: #24292e;
+}
+
+:root:not(.dark) .text-preview-fade {
+  background: linear-gradient(transparent, #ffffff);
+}
+
+:root:not(.dark) .text-preview-more {
+  background: #ffffff;
+}
+
+:root:not(.dark) .text-preview-more span {
+  color: #0366d6;
+}
+
+/* 亮色主题 highlight.js 样式 */
+:root:not(.dark) .text-preview-code .hljs {
+  color: #24292e;
+}
+
+:root:not(.dark) .text-preview-code .hljs-comment,
+:root:not(.dark) .text-preview-code .hljs-quote {
+  color: #6a737d;
+}
+
+:root:not(.dark) .text-preview-code .hljs-keyword {
+  color: #d73a49;
+}
+
+:root:not(.dark) .text-preview-code .hljs-string {
+  color: #032f62;
+}
+
+:root:not(.dark) .text-preview-code .hljs-number {
+  color: #005cc5;
+}
+
+:root:not(.dark) .text-preview-code .hljs-function,
+:root:not(.dark) .text-preview-code .hljs-title {
+  color: #6f42c1;
+}
+
+:root:not(.dark) .text-preview-code .hljs-tag {
+  color: #22863a;
+}
+
 </style>

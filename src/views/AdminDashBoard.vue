@@ -171,6 +171,24 @@
                             <font-awesome-icon icon="music" class="file-icon audio-icon"/>
                         </div>
                         <el-image v-else-if="isImage(item)" :preview-teleported="true" :src="getFileLink(item.name)" :preview-src-list="item.previewSrcList" fit="cover" lazy class="image-preview"></el-image>
+                        <!-- 文本文件预览卡片 -->
+                        <div v-else-if="isTextFile(item)"
+                            class="file-preview text-file-card"
+                            @click="openTextPreview(item)"
+                            @mouseenter="handleTextFileHover(item)"
+                            @mouseleave="handleTextFileLeave(item)">
+                            <div v-if="textPreviewCache[item.name]?.loading" class="text-preview-loading">
+                                <font-awesome-icon icon="spinner" spin class="loading-icon"/>
+                            </div>
+                            <div v-else-if="textPreviewCache[item.name]?.highlighted" class="text-preview-content">
+                                <pre><code v-html="textPreviewCache[item.name].highlighted"></code></pre>
+                                <div v-if="textPreviewCache[item.name]?.hasMore" class="text-preview-more">...</div>
+                            </div>
+                            <div v-else class="text-file-placeholder">
+                                <font-awesome-icon icon="file-code" class="file-icon text-icon"/>
+                                <span class="text-file-hint">悬停预览</span>
+                            </div>
+                        </div>
                         <div v-else class="file-preview">
                             <font-awesome-icon icon="file" class="file-icon"/>
                         </div>
@@ -596,6 +614,69 @@
                 </div>
             </Transition>
         </Teleport>
+
+        <!-- 文本预览弹窗 -->
+        <el-dialog
+            v-model="textPreviewDialogVisible"
+            :title="textPreviewDialogData.displayName"
+            width="85%"
+            :close-on-click-modal="false"
+            class="text-preview-dialog"
+            @close="closeTextPreviewDialog"
+        >
+            <div class="text-preview-dialog-content">
+                <div v-if="textPreviewDialogData.loading" class="text-preview-loading-container">
+                    <el-icon class="is-loading" :size="40">
+                        <Loading />
+                    </el-icon>
+                    <p>加载中...</p>
+                </div>
+                <div v-else-if="textPreviewDialogData.error" class="text-preview-error-container">
+                    <p>加载失败: {{ textPreviewDialogData.error }}</p>
+                </div>
+                <div v-else class="text-preview-code-container">
+                    <pre><code v-html="textPreviewDialogData.highlighted" class="hljs"></code></pre>
+                </div>
+            </div>
+            <template #footer>
+                <div class="text-preview-dialog-footer">
+                    <div class="theme-selector-row">
+                        <span class="theme-label">代码主题：</span>
+                        <el-select v-model="currentCodeTheme" @change="handleThemeChange" size="small" style="width: 200px;">
+                            <el-option
+                                v-for="theme in darkThemes"
+                                :key="theme.value"
+                                :label="theme.label"
+                                :value="theme.value">
+                            </el-option>
+                        </el-select>
+                    </div>
+                    <div class="action-buttons-row">
+                        <el-button @click="copyTextContent" :disabled="textPreviewDialogData.loading">
+                            <font-awesome-icon icon="copy" style="margin-right: 4px;" />
+                            复制文件内容
+                        </el-button>
+                        <el-button @click="copyFileLink" :disabled="textPreviewDialogData.loading">
+                            <font-awesome-icon icon="link" style="margin-right: 4px;" />
+                            复制下载链接
+                        </el-button>
+                        <el-button @click="downloadTextFile" :disabled="textPreviewDialogData.loading">
+                            <font-awesome-icon icon="download" style="margin-right: 4px;" />
+                            下载文件
+                        </el-button>
+                        <el-button @click="copyPreviewLink" :disabled="textPreviewDialogData.loading">
+                            <font-awesome-icon icon="eye" style="margin-right: 4px;" />
+                            复制预览链接
+                        </el-button>
+                        <el-button @click="openInNewTab" :disabled="textPreviewDialogData.loading">
+                            <font-awesome-icon icon="external-link-alt" style="margin-right: 4px;" />
+                            新标签页打开
+                        </el-button>
+                        <el-button @click="closeTextPreviewDialog">关闭</el-button>
+                    </div>
+                </div>
+            </template>
+        </el-dialog>
     </div>
 </template>
 
@@ -607,6 +688,67 @@ import TagManagementDialog from '@/components/TagManagementDialog.vue';
 import BatchTagDialog from '@/components/BatchTagDialog.vue';
 import { fileManager } from '@/utils/fileManager';
 import fetchWithAuth from '@/utils/fetchWithAuth';
+import { darkThemes } from '@/utils/highlightTheme';
+import hljs from 'highlight.js/lib/core';
+// 导入常用语言
+import javascript from 'highlight.js/lib/languages/javascript';
+import typescript from 'highlight.js/lib/languages/typescript';
+import python from 'highlight.js/lib/languages/python';
+import bash from 'highlight.js/lib/languages/bash';
+import json from 'highlight.js/lib/languages/json';
+import xml from 'highlight.js/lib/languages/xml';
+import css from 'highlight.js/lib/languages/css';
+import sql from 'highlight.js/lib/languages/sql';
+import yaml from 'highlight.js/lib/languages/yaml';
+import markdown from 'highlight.js/lib/languages/markdown';
+import plaintext from 'highlight.js/lib/languages/plaintext';
+import go from 'highlight.js/lib/languages/go';
+import rust from 'highlight.js/lib/languages/rust';
+import php from 'highlight.js/lib/languages/php';
+import java from 'highlight.js/lib/languages/java';
+import cpp from 'highlight.js/lib/languages/cpp';
+import ruby from 'highlight.js/lib/languages/ruby';
+import swift from 'highlight.js/lib/languages/swift';
+import kotlin from 'highlight.js/lib/languages/kotlin';
+import scala from 'highlight.js/lib/languages/scala';
+import ini from 'highlight.js/lib/languages/ini';
+import shell from 'highlight.js/lib/languages/shell';
+import dockerfile from 'highlight.js/lib/languages/dockerfile';
+import makefile from 'highlight.js/lib/languages/makefile';
+import perl from 'highlight.js/lib/languages/perl';
+import lua from 'highlight.js/lib/languages/lua';
+import r from 'highlight.js/lib/languages/r';
+
+// 注册语言
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('typescript', typescript);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('bash', bash);
+hljs.registerLanguage('shell', shell);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('xml', xml);
+hljs.registerLanguage('html', xml);
+hljs.registerLanguage('css', css);
+hljs.registerLanguage('sql', sql);
+hljs.registerLanguage('yaml', yaml);
+hljs.registerLanguage('markdown', markdown);
+hljs.registerLanguage('plaintext', plaintext);
+hljs.registerLanguage('go', go);
+hljs.registerLanguage('rust', rust);
+hljs.registerLanguage('php', php);
+hljs.registerLanguage('java', java);
+hljs.registerLanguage('cpp', cpp);
+hljs.registerLanguage('c', cpp); // C 使用 cpp 语法
+hljs.registerLanguage('ruby', ruby);
+hljs.registerLanguage('swift', swift);
+hljs.registerLanguage('kotlin', kotlin);
+hljs.registerLanguage('scala', scala);
+hljs.registerLanguage('ini', ini);
+hljs.registerLanguage('dockerfile', dockerfile);
+hljs.registerLanguage('makefile', makefile);
+hljs.registerLanguage('perl', perl);
+hljs.registerLanguage('lua', lua);
+hljs.registerLanguage('r', r);
 
 export default {
 data() {
@@ -648,6 +790,40 @@ data() {
         longPressTimer: null, // 长按计时器
         showMobileDirectoryDrawer: false, // 移动端目录抽屉
         jumpPage: '', // 跳转页码输入
+        // 文本文件预览
+        textPreviewCache: {},     // 缓存文本预览内容 { fileName: { content, highlighted, loading } }
+        hoverTimers: {},          // 悬停计时器 { fileName: timeoutId }
+        TEXT_FILE_EXTENSIONS: [
+            'txt', 'text', 'log', 'md', 'markdown',
+            'conf', 'config', 'cfg', 'cnf', 'ini', 'properties',
+            'sh', 'bash', 'zsh', 'fish', 'bat', 'cmd', 'ps1',
+            'json', 'jsonc', 'json5',
+            'xml', 'html', 'htm', 'xhtml',
+            'css', 'scss', 'sass', 'less',
+            'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs',
+            'yaml', 'yml', 'toml',
+            'py', 'rb', 'php', 'java', 'c', 'cpp', 'h', 'hpp',
+            'go', 'rs', 'swift', 'kt', 'scala',
+            'sql', 'prisma', 'graphql', 'gql',
+            'env', 'gitignore', 'dockerignore', 'editorconfig',
+            'csv', 'tsv', 'dat',
+            'dockerfile', 'makefile', 'rakefile',
+            'vue', 'svelte', 'astro',
+            'pl', 'lua', 'r', 'matlab', 'm'
+        ],
+        // 文本预览弹窗
+        textPreviewDialogVisible: false,
+        textPreviewDialogData: {
+            fileName: '',
+            displayName: '',
+            content: '',
+            highlighted: '',
+            loading: false,
+            error: null,
+            fileUrl: ''
+        },
+        // 代码主题
+        darkThemes: darkThemes,
     }
 },
 components: {
@@ -656,7 +832,15 @@ components: {
     BatchTagDialog
 },
 computed: {
-    ...mapGetters(['adminUrlSettings', 'userConfig']),
+    ...mapGetters(['adminUrlSettings', 'userConfig', 'codeTheme']),
+    currentCodeTheme: {
+        get() {
+            return this.codeTheme;
+        },
+        set(value) {
+            this.$store.commit('setCodeTheme', value);
+        }
+    },
     filteredTableData() {
         return this.tableData;
     },
@@ -817,6 +1001,12 @@ watch: {
     }
 },
 methods: {
+    // 处理主题切换
+    handleThemeChange(theme) {
+        // 主题已经通过 v-model 更新到 store，无需额外操作
+        // store 的 subscribe 会自动调用 loadHighlightTheme
+        this.$message.success(`已切换到 ${theme} 主题`);
+    },
     // 切换视图模式
     toggleViewMode() {
         this.viewMode = this.viewMode === 'card' ? 'list' : 'card';
@@ -1586,6 +1776,248 @@ methods: {
             flag = imageExtensions.includes(extension);
         }
         return flag;
+    },
+    isTextFile(file) {
+        const fileName = file.metadata?.FileName || file.name;
+        const ext = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+        return this.TEXT_FILE_EXTENSIONS.includes(ext);
+    },
+    getLanguageFromExt(fileName) {
+        const ext = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+
+        // 处理无扩展名的特殊文件
+        const baseName = fileName.split('/').pop().toLowerCase();
+        if (baseName === 'dockerfile') return 'dockerfile';
+        if (baseName === 'makefile' || baseName === 'rakefile') return 'makefile';
+        if (baseName === '.gitignore' || baseName === '.dockerignore' || baseName === '.editorconfig') return 'plaintext';
+
+        const langMap = {
+            // JavaScript/TypeScript
+            'js': 'javascript', 'jsx': 'javascript', 'mjs': 'javascript', 'cjs': 'javascript',
+            'ts': 'typescript', 'tsx': 'typescript',
+            // Python
+            'py': 'python',
+            // Shell scripts
+            'sh': 'bash', 'bash': 'bash', 'zsh': 'bash', 'fish': 'bash',
+            'bat': 'shell', 'cmd': 'shell', 'ps1': 'shell',
+            // Config/Data formats
+            'json': 'json', 'jsonc': 'json', 'json5': 'json',
+            'xml': 'xml', 'html': 'html', 'htm': 'html', 'xhtml': 'html',
+            'css': 'css', 'scss': 'css', 'sass': 'css', 'less': 'css',
+            'yaml': 'yaml', 'yml': 'yaml',
+            'toml': 'ini',
+            'ini': 'ini', 'conf': 'ini', 'config': 'ini', 'cfg': 'ini', 'cnf': 'ini', 'properties': 'ini',
+            'env': 'shell',
+            // Markdown
+            'md': 'markdown', 'markdown': 'markdown',
+            // SQL
+            'sql': 'sql', 'prisma': 'sql',
+            // Programming languages
+            'go': 'go',
+            'rs': 'rust',
+            'php': 'php',
+            'java': 'java',
+            'c': 'c', 'h': 'c',
+            'cpp': 'cpp', 'cc': 'cpp', 'cxx': 'cpp', 'hpp': 'cpp', 'hh': 'cpp', 'hxx': 'cpp',
+            'rb': 'ruby',
+            'swift': 'swift',
+            'kt': 'kotlin', 'kts': 'kotlin',
+            'scala': 'scala',
+            'pl': 'perl',
+            'lua': 'lua',
+            'r': 'r',
+            // Frontend frameworks
+            'vue': 'html', 'svelte': 'html', 'astro': 'html',
+            // GraphQL (使用 plaintext，因为 highlight.js 核心不包含 graphql)
+            'graphql': 'plaintext', 'gql': 'plaintext',
+            // Plain text
+            'txt': 'plaintext', 'text': 'plaintext', 'log': 'plaintext',
+            'csv': 'plaintext', 'tsv': 'plaintext', 'dat': 'plaintext',
+        };
+        return langMap[ext] || 'plaintext';
+    },
+    async fetchTextPreview(file) {
+        const fileName = file.name;
+        if (this.textPreviewCache[fileName]) {
+            return this.textPreviewCache[fileName];
+        }
+        this.textPreviewCache[fileName] = {
+            content: '',
+            highlighted: '',
+            loading: true,
+            error: null
+        };
+        try {
+            const response = await fetch(this.getFileLink(fileName));
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const text = await response.text();
+
+            // 动态计算可显示的行数
+            // 卡片高度 22vh，减去顶部标签(30px)、底部文件名+操作栏(50px)，约剩余 22vh - 80px
+            // 每行高度约 14px (font-size: 10px * line-height: 1.4)
+            const viewportHeight = window.innerHeight;
+            const cardHeight = viewportHeight * 0.22; // 22vh
+            const availableHeight = cardHeight - 80; // 减去固定区域
+            const lineHeight = 14; // 单行高度
+            const maxLines = Math.max(10, Math.floor(availableHeight / lineHeight)); // 至少10行
+
+            const lines = text.split('\n').slice(0, maxLines);
+            const preview = lines.join('\n');
+            const displayName = file.metadata?.FileName || fileName;
+            const language = this.getLanguageFromExt(displayName);
+            console.log('🔍 Preview Debug:', { fileName, displayName, language }); // 调试信息
+            let highlighted = '';
+            try {
+                highlighted = hljs.highlight(preview, { language }).value;
+                console.log('✅ Highlight success for', displayName); // 调试信息
+            } catch (e) {
+                console.error('❌ Highlight failed for', displayName, e); // 调试信息
+                highlighted = this.escapeHtml(preview);
+            }
+            this.textPreviewCache[fileName] = {
+                content: preview,
+                highlighted,
+                loading: false,
+                error: null,
+                hasMore: lines.length >= maxLines
+            };
+            return this.textPreviewCache[fileName];
+        } catch (error) {
+            this.textPreviewCache[fileName] = {
+                content: '',
+                highlighted: '',
+                loading: false,
+                error: error.message
+            };
+            return this.textPreviewCache[fileName];
+        }
+    },
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+    handleTextFileHover(file) {
+        if (!this.isTextFile(file)) return;
+        const fileName = file.name;
+        if (this.hoverTimers[fileName]) {
+            clearTimeout(this.hoverTimers[fileName]);
+        }
+        this.hoverTimers[fileName] = setTimeout(() => {
+            this.fetchTextPreview(file);
+        }, 500);
+    },
+    handleTextFileLeave(file) {
+        const fileName = file.name;
+        if (this.hoverTimers[fileName]) {
+            clearTimeout(this.hoverTimers[fileName]);
+            delete this.hoverTimers[fileName];
+        }
+    },
+    openTextPreview(file) {
+        const fileName = file.name;
+        const displayName = file.metadata?.FileName || fileName;
+        const fileUrl = this.getFileLink(fileName);
+
+        this.textPreviewDialogData = {
+            fileName,
+            displayName,
+            content: '',
+            highlighted: '',
+            loading: true,
+            error: null,
+            fileUrl
+        };
+        this.textPreviewDialogVisible = true;
+
+        // 加载完整文件内容
+        this.loadFullTextContent(file);
+    },
+    async loadFullTextContent(file) {
+        const fileName = file.name;
+        const displayName = file.metadata?.FileName || fileName;
+
+        try {
+            const response = await fetch(this.getFileLink(fileName));
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const text = await response.text();
+            const language = this.getLanguageFromExt(displayName);
+            console.log('🔍 Full Preview Debug:', { fileName, displayName, language }); // 调试信息
+            let highlighted = '';
+            try {
+                highlighted = hljs.highlight(text, { language }).value;
+                console.log('✅ Full highlight success for', displayName); // 调试信息
+            } catch (e) {
+                console.error('❌ Full highlight failed for', displayName, e); // 调试信息
+                highlighted = this.escapeHtml(text);
+            }
+            this.textPreviewDialogData = {
+                ...this.textPreviewDialogData,
+                content: text,
+                highlighted,
+                loading: false,
+                error: null
+            };
+        } catch (error) {
+            this.textPreviewDialogData = {
+                ...this.textPreviewDialogData,
+                content: '',
+                highlighted: '',
+                loading: false,
+                error: error.message
+            };
+        }
+    },
+    async copyTextContent() {
+        try {
+            await navigator.clipboard.writeText(this.textPreviewDialogData.content);
+            this.$message.success('文件内容已复制到剪贴板');
+        } catch (e) {
+            this.$message.error('复制失败');
+        }
+    },
+    async copyPreviewLink() {
+        try {
+            const previewPath = `/preview/${this.textPreviewDialogData.fileName.split('/').join(',')}`;
+            const fullUrl = window.location.origin + previewPath;
+            await navigator.clipboard.writeText(fullUrl);
+            this.$message.success('预览链接已复制到剪贴板');
+        } catch (e) {
+            this.$message.error('复制失败');
+        }
+    },
+    openInNewTab() {
+        const previewPath = `/preview/${this.textPreviewDialogData.fileName.split('/').join(',')}`;
+        window.open(previewPath, '_blank');
+    },
+    closeTextPreviewDialog() {
+        this.textPreviewDialogVisible = false;
+    },
+    downloadTextFile() {
+        const blob = new Blob([this.textPreviewDialogData.content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = this.textPreviewDialogData.displayName;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.$message.success('文件已开始下载');
+    },
+    async copyFileLink() {
+        try {
+            const fileUrl = this.textPreviewDialogData.fileUrl;
+            // 去除 ?from=admin 参数
+            const cleanUrl = fileUrl.replace('?from=admin', '');
+            const fullUrl = window.location.origin + cleanUrl;
+            await navigator.clipboard.writeText(fullUrl);
+            this.$message.success('文件下载链接已复制到剪贴板');
+        } catch (e) {
+            this.$message.error('复制失败');
+        }
     },
     getFileLink(filename) {
         const fileLink = process.env.NODE_ENV === 'production' ? `/file/${filename}?from=admin` : `/api/file/${filename}?from=admin`;
@@ -3520,6 +3952,280 @@ html.dark .mobile-drawer {
     to {
         transform: translateX(-100%);
     }
+}
+
+/* 文本文件预览样式 */
+.text-file-card {
+    cursor: pointer;
+    background: linear-gradient(135deg, #1e1e2e 0%, #2d2d3d 100%);
+    transition: all 0.3s ease;
+}
+
+.text-file-card:hover {
+    background: linear-gradient(135deg, #2d2d3d 0%, #3d3d4d 100%);
+}
+
+.text-preview-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+}
+
+.text-preview-loading .loading-icon {
+    font-size: 32px;
+    color: #64b5f6;
+}
+
+.text-preview-content {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+    padding: 8px;
+    box-sizing: border-box;
+    text-align: left;
+}
+
+.text-preview-content pre {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+    text-align: left;
+}
+
+.text-preview-content code {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 10px;
+    line-height: 1.4;
+    color: #c9d1d9;
+    white-space: pre;
+    word-break: normal;
+    text-align: left;
+    display: block;
+}
+
+.text-preview-more {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(transparent, rgba(30, 30, 46, 0.95));
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 4px;
+    color: #8b949e;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.text-file-placeholder {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    gap: 8px;
+}
+
+.text-file-placeholder .text-icon {
+    font-size: clamp(36px, 3.5vw, 56px);
+    color: #64b5f6;
+    opacity: 0.8;
+}
+
+.text-file-hint {
+    font-size: 12px;
+    color: #8b949e;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.text-file-card:hover .text-file-hint {
+    opacity: 1;
+}
+
+/* highlight.js 主题适配 */
+.text-preview-content .hljs {
+    background: transparent;
+    padding: 0;
+}
+
+.text-preview-content .hljs-keyword { color: #ff79c6; }
+.text-preview-content .hljs-string { color: #f1fa8c; }
+.text-preview-content .hljs-number { color: #bd93f9; }
+.text-preview-content .hljs-comment { color: #6272a4; }
+.text-preview-content .hljs-function { color: #50fa7b; }
+.text-preview-content .hljs-class { color: #8be9fd; }
+.text-preview-content .hljs-variable { color: #f8f8f2; }
+.text-preview-content .hljs-operator { color: #ff79c6; }
+.text-preview-content .hljs-punctuation { color: #f8f8f2; }
+.text-preview-content .hljs-property { color: #66d9ef; }
+.text-preview-content .hljs-attr { color: #50fa7b; }
+.text-preview-content .hljs-tag { color: #ff79c6; }
+.text-preview-content .hljs-name { color: #ff79c6; }
+.text-preview-content .hljs-selector-tag { color: #ff79c6; }
+.text-preview-content .hljs-selector-class { color: #50fa7b; }
+.text-preview-content .hljs-selector-id { color: #8be9fd; }
+.text-preview-content .hljs-built_in { color: #8be9fd; }
+.text-preview-content .hljs-literal { color: #bd93f9; }
+.text-preview-content .hljs-type { color: #8be9fd; }
+.text-preview-content .hljs-params { color: #ffb86c; }
+.text-preview-content .hljs-meta { color: #f8f8f2; }
+.text-preview-content .hljs-title { color: #50fa7b; }
+
+/* 文本预览弹窗样式 */
+.text-preview-dialog {
+    --el-dialog-bg-color: #1e1e2e;
+}
+
+.text-preview-dialog :deep(.el-dialog) {
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.text-preview-dialog .el-dialog__header {
+    background: #2d2d3d;
+    padding: 16px 20px;
+    margin: 0;
+    border-bottom: 1px solid #3d3d4d;
+    flex-shrink: 0;
+}
+
+.text-preview-dialog .el-dialog__title {
+    color: #c9d1d9;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.text-preview-dialog :deep(.el-dialog__body) {
+    padding: 0;
+    background: #1e1e2e;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.text-preview-dialog-content {
+    max-height: 65vh;
+    overflow: auto;
+}
+
+.text-preview-loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #64b5f6;
+}
+
+.text-preview-loading-container p {
+    margin-top: 16px;
+    color: #8b949e;
+}
+
+.text-preview-error-container {
+    padding: 40px 20px;
+    text-align: center;
+    color: #f85149;
+}
+
+.text-preview-code-container {
+    padding: 20px;
+    background: #1e1e2e;
+}
+
+.text-preview-code-container pre {
+    margin: 0;
+    padding: 16px;
+    background: #0d1117;
+    border-radius: 6px;
+    overflow-x: auto;
+    text-align: left;
+}
+
+.text-preview-code-container code {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #c9d1d9;
+    white-space: pre;
+    user-select: text;
+    cursor: text;
+    display: block;
+    text-align: left;
+}
+
+/* 弹窗中的 highlight.js 主题 */
+.text-preview-code-container .hljs {
+    background: #0d1117;
+    padding: 0;
+    text-align: left;
+}
+
+.text-preview-code-container .hljs-keyword { color: #ff79c6; }
+.text-preview-code-container .hljs-string { color: #f1fa8c; }
+.text-preview-code-container .hljs-number { color: #bd93f9; }
+.text-preview-code-container .hljs-comment { color: #6272a4; }
+.text-preview-code-container .hljs-function { color: #50fa7b; }
+.text-preview-code-container .hljs-class { color: #8be9fd; }
+.text-preview-code-container .hljs-variable { color: #f8f8f2; }
+.text-preview-code-container .hljs-operator { color: #ff79c6; }
+.text-preview-code-container .hljs-punctuation { color: #f8f8f2; }
+.text-preview-code-container .hljs-property { color: #66d9ef; }
+.text-preview-code-container .hljs-attr { color: #50fa7b; }
+.text-preview-code-container .hljs-tag { color: #ff79c6; }
+.text-preview-code-container .hljs-name { color: #ff79c6; }
+.text-preview-code-container .hljs-selector-tag { color: #ff79c6; }
+.text-preview-code-container .hljs-selector-class { color: #50fa7b; }
+.text-preview-code-container .hljs-selector-id { color: #8be9fd; }
+.text-preview-code-container .hljs-built_in { color: #8be9fd; }
+.text-preview-code-container .hljs-literal { color: #bd93f9; }
+.text-preview-code-container .hljs-type { color: #8be9fd; }
+.text-preview-code-container .hljs-params { color: #ffb86c; }
+.text-preview-code-container .hljs-meta { color: #f8f8f2; }
+.text-preview-code-container .hljs-title { color: #50fa7b; }
+
+.text-preview-dialog-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.theme-selector-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #3d3d4d;
+}
+
+.theme-label {
+    color: var(--el-text-color-primary);
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.action-buttons-row {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+}
+
+.text-preview-dialog :deep(.el-dialog__footer) {
+    background: #2d2d3d;
+    padding: 16px 20px;
+    border-top: 1px solid #3d3d4d;
+    flex-shrink: 0;
 }
 
 </style>
