@@ -41,7 +41,7 @@
                 <p>加载失败: {{ error }}</p>
             </div>
             <div v-else class="preview-code">
-                <pre><code v-html="highlighted" class="hljs"></code></pre>
+                <pre><code v-html="highlightedWithLineNumbers" class="hljs"></code></pre>
             </div>
         </div>
         <div class="preview-footer" v-if="!loading && !error">
@@ -158,6 +158,14 @@ export default {
             const sizes = ['B', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        },
+        highlightedWithLineNumbers() {
+            if (!this.highlighted) return '';
+            const lines = this.highlighted.split('\n');
+            return lines.map((line, index) => {
+                const lineNumber = index + 1;
+                return `<span class="line"><span class="line-number">${lineNumber}</span><span class="line-content">${line || ' '}</span></span>`;
+            }).join('\n');
         }
     },
     mounted() {
@@ -397,6 +405,26 @@ export default {
     white-space: pre;
     display: block;
     text-align: left;
+}
+
+/* 行号样式 */
+.preview-code .line {
+    display: block;
+}
+
+.preview-code .line-number {
+    display: inline-block;
+    width: 50px;
+    text-align: right;
+    padding-right: 16px;
+    color: #6e7681;
+    user-select: none;
+    border-right: 1px solid #30363d;
+    margin-right: 16px;
+}
+
+.preview-code .line-content {
+    display: inline;
 }
 
 /* highlight.js 主题 */
