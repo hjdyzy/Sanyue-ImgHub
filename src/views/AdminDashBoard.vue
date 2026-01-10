@@ -620,7 +620,7 @@
             v-model="textPreviewDialogVisible"
             :title="textPreviewDialogData.displayName"
             width="85%"
-            :close-on-click-modal="false"
+            :close-on-click-modal="true"
             class="text-preview-dialog"
             @close="closeTextPreviewDialog"
         >
@@ -635,14 +635,19 @@
                     <p>加载失败: {{ textPreviewDialogData.error }}</p>
                 </div>
                 <div v-else class="text-preview-code-container">
-                    <pre><code v-html="highlightedWithLineNumbers" class="hljs"></code></pre>
+                    <div class="code-editor">
+                        <div class="line-numbers" aria-hidden="true">
+                            <span v-for="n in dialogLineCount" :key="n">{{ n }}</span>
+                        </div>
+                        <pre class="code-content"><code v-html="textPreviewDialogData.highlighted" class="hljs"></code></pre>
+                    </div>
                 </div>
             </div>
             <template #footer>
                 <div class="text-preview-dialog-footer">
                     <div class="theme-selector-row">
                         <span class="theme-label">代码主题：</span>
-                        <el-select v-model="currentCodeTheme" @change="handleThemeChange" size="small" style="width: 200px;">
+                        <el-select v-model="currentCodeTheme" @change="handleThemeChange" style="width: 200px;">
                             <el-option
                                 v-for="theme in darkThemes"
                                 :key="theme.value"
@@ -965,13 +970,9 @@ computed: {
     pagerCount() {
         return window.innerWidth < 768 ? 3 : 7;
     },
-    highlightedWithLineNumbers() {
-        if (!this.textPreviewDialogData.highlighted) return '';
-        const lines = this.textPreviewDialogData.highlighted.split('\n');
-        return lines.map((line, index) => {
-            const lineNumber = index + 1;
-            return `<span class="line"><span class="line-number">${lineNumber}</span><span class="line-content">${line || ' '}</span></span>`;
-        }).join('\n');
+    dialogLineCount() {
+        if (!this.textPreviewDialogData.content) return 0;
+        return this.textPreviewDialogData.content.split('\n').length;
     }
 },
 watch: {
@@ -4151,76 +4152,89 @@ html.dark .mobile-drawer {
     background: #1e1e2e;
 }
 
-.text-preview-code-container pre {
-    margin: 0;
-    padding: 16px;
+/* VSCode 风格代码编辑器 */
+.code-editor {
+    display: flex;
     background: #0d1117;
     border-radius: 6px;
-    overflow-x: auto;
-    text-align: left;
-}
-
-.text-preview-code-container code {
+    overflow: hidden;
     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
     font-size: 14px;
     line-height: 1.6;
+}
+
+.line-numbers {
+    flex-shrink: 0;
+    padding: 16px 0;
+    background: #0d1117;
+    border-right: 1px solid #30363d;
+    text-align: right;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    color: #6e7681;
+    min-width: 50px;
+}
+
+.line-numbers span {
+    display: block;
+    padding: 0 16px 0 12px;
+    height: 22.4px;
+    line-height: 22.4px;
+}
+
+.code-content {
+    flex: 1;
+    margin: 0;
+    padding: 16px;
+    overflow-x: auto;
+    background: #0d1117;
+}
+
+.code-content code {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: 1.6;
     color: #c9d1d9;
     white-space: pre;
-    user-select: text;
-    cursor: text;
     display: block;
     text-align: left;
 }
 
-/* 行号样式 */
-.text-preview-code-container .line {
-    display: block;
-}
-
-.text-preview-code-container .line-number {
-    display: inline-block;
-    width: 50px;
-    text-align: right;
-    padding-right: 16px;
-    color: #6e7681;
-    user-select: none;
-    border-right: 1px solid #30363d;
-    margin-right: 16px;
-}
-
-.text-preview-code-container .line-content {
-    display: inline;
-}
-
-/* 弹窗中的 highlight.js 主题 */
-.text-preview-code-container .hljs {
-    background: #0d1117;
+.code-content code .hljs {
+    background: transparent;
     padding: 0;
-    text-align: left;
 }
 
-.text-preview-code-container .hljs-keyword { color: #ff79c6; }
-.text-preview-code-container .hljs-string { color: #f1fa8c; }
-.text-preview-code-container .hljs-number { color: #bd93f9; }
-.text-preview-code-container .hljs-comment { color: #6272a4; }
-.text-preview-code-container .hljs-function { color: #50fa7b; }
-.text-preview-code-container .hljs-class { color: #8be9fd; }
-.text-preview-code-container .hljs-variable { color: #f8f8f2; }
-.text-preview-code-container .hljs-operator { color: #ff79c6; }
-.text-preview-code-container .hljs-punctuation { color: #f8f8f2; }
-.text-preview-code-container .hljs-property { color: #66d9ef; }
-.text-preview-code-container .hljs-attr { color: #50fa7b; }
-.text-preview-code-container .hljs-tag { color: #ff79c6; }
-.text-preview-code-container .hljs-name { color: #ff79c6; }
-.text-preview-code-container .hljs-selector-tag { color: #ff79c6; }
-.text-preview-code-container .hljs-selector-class { color: #50fa7b; }
-.text-preview-code-container .hljs-selector-id { color: #8be9fd; }
-.text-preview-code-container .hljs-built_in { color: #8be9fd; }
-.text-preview-code-container .hljs-literal { color: #bd93f9; }
-.text-preview-code-container .hljs-type { color: #8be9fd; }
-.text-preview-code-container .hljs-params { color: #ffb86c; }
-.text-preview-code-container .hljs-meta { color: #f8f8f2; }
-.text-preview-code-container .hljs-title { color: #50fa7b; }
+/* 弹窗中的 highlight.js 主题 (Dracula) */
+.code-content .hljs {
+    background: transparent;
+    padding: 0;
+}
+
+.code-content .hljs-keyword { color: #ff79c6; }
+.code-content .hljs-string { color: #f1fa8c; }
+.code-content .hljs-number { color: #bd93f9; }
+.code-content .hljs-comment { color: #6272a4; }
+.code-content .hljs-function { color: #50fa7b; }
+.code-content .hljs-class { color: #8be9fd; }
+.code-content .hljs-variable { color: #f8f8f2; }
+.code-content .hljs-operator { color: #ff79c6; }
+.code-content .hljs-punctuation { color: #f8f8f2; }
+.code-content .hljs-property { color: #66d9ef; }
+.code-content .hljs-attr { color: #50fa7b; }
+.code-content .hljs-tag { color: #ff79c6; }
+.code-content .hljs-name { color: #ff79c6; }
+.code-content .hljs-selector-tag { color: #ff79c6; }
+.code-content .hljs-selector-class { color: #50fa7b; }
+.code-content .hljs-selector-id { color: #8be9fd; }
+.code-content .hljs-built_in { color: #8be9fd; }
+.code-content .hljs-literal { color: #bd93f9; }
+.code-content .hljs-type { color: #8be9fd; }
+.code-content .hljs-params { color: #ffb86c; }
+.code-content .hljs-meta { color: #f8f8f2; }
+.code-content .hljs-title { color: #50fa7b; }
 
 .text-preview-dialog-footer {
     display: flex;

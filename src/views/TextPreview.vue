@@ -5,7 +5,7 @@
             <div class="preview-header-right">
                 <div class="theme-selector">
                     <span class="theme-label">主题：</span>
-                    <el-select v-model="currentCodeTheme" @change="handleThemeChange" size="small" style="width: 180px;">
+                    <el-select v-model="currentCodeTheme" @change="handleThemeChange" style="width: 180px;">
                         <el-option
                             v-for="theme in darkThemes"
                             :key="theme.value"
@@ -41,7 +41,12 @@
                 <p>加载失败: {{ error }}</p>
             </div>
             <div v-else class="preview-code">
-                <pre><code v-html="highlightedWithLineNumbers" class="hljs"></code></pre>
+                <div class="code-editor">
+                    <div class="line-numbers" aria-hidden="true">
+                        <span v-for="n in lineCount" :key="n">{{ n }}</span>
+                    </div>
+                    <pre class="code-content"><code v-html="highlighted" class="hljs"></code></pre>
+                </div>
             </div>
         </div>
         <div class="preview-footer" v-if="!loading && !error">
@@ -158,14 +163,6 @@ export default {
             const sizes = ['B', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        },
-        highlightedWithLineNumbers() {
-            if (!this.highlighted) return '';
-            const lines = this.highlighted.split('\n');
-            return lines.map((line, index) => {
-                const lineNumber = index + 1;
-                return `<span class="line"><span class="line-number">${lineNumber}</span><span class="line-content">${line || ' '}</span></span>`;
-            }).join('\n');
         }
     },
     mounted() {
@@ -389,17 +386,49 @@ export default {
     overflow: auto;
 }
 
-.preview-code pre {
-    margin: 0;
-    padding: 16px;
+/* VSCode 风格代码编辑器 */
+.code-editor {
+    display: flex;
     background: #0d1117;
     border-radius: 6px;
-    overflow-x: auto;
-}
-
-.preview-code code {
+    overflow: hidden;
     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
     font-size: 14px;
+    line-height: 1.6;
+}
+
+.line-numbers {
+    flex-shrink: 0;
+    padding: 16px 0;
+    background: #0d1117;
+    border-right: 1px solid #30363d;
+    text-align: right;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    color: #6e7681;
+    min-width: 50px;
+}
+
+.line-numbers span {
+    display: block;
+    padding: 0 16px 0 12px;
+    height: 22.4px;
+    line-height: 22.4px;
+}
+
+.code-content {
+    flex: 1;
+    margin: 0;
+    padding: 16px;
+    overflow-x: auto;
+    background: #0d1117;
+}
+
+.code-content code {
+    font-family: inherit;
+    font-size: inherit;
     line-height: 1.6;
     color: #c9d1d9;
     white-space: pre;
@@ -407,54 +436,39 @@ export default {
     text-align: left;
 }
 
-/* 行号样式 */
-.preview-code .line {
-    display: block;
-}
-
-.preview-code .line-number {
-    display: inline-block;
-    width: 50px;
-    text-align: right;
-    padding-right: 16px;
-    color: #6e7681;
-    user-select: none;
-    border-right: 1px solid #30363d;
-    margin-right: 16px;
-}
-
-.preview-code .line-content {
-    display: inline;
-}
-
-/* highlight.js 主题 */
-.preview-code .hljs {
-    background: #0d1117;
+.code-content code .hljs {
+    background: transparent;
     padding: 0;
 }
 
-.preview-code .hljs-keyword { color: #ff79c6; }
-.preview-code .hljs-string { color: #f1fa8c; }
-.preview-code .hljs-number { color: #bd93f9; }
-.preview-code .hljs-comment { color: #6272a4; }
-.preview-code .hljs-function { color: #50fa7b; }
-.preview-code .hljs-class { color: #8be9fd; }
-.preview-code .hljs-variable { color: #f8f8f2; }
-.preview-code .hljs-operator { color: #ff79c6; }
-.preview-code .hljs-punctuation { color: #f8f8f2; }
-.preview-code .hljs-property { color: #66d9ef; }
-.preview-code .hljs-attr { color: #50fa7b; }
-.preview-code .hljs-tag { color: #ff79c6; }
-.preview-code .hljs-name { color: #ff79c6; }
-.preview-code .hljs-selector-tag { color: #ff79c6; }
-.preview-code .hljs-selector-class { color: #50fa7b; }
-.preview-code .hljs-selector-id { color: #8be9fd; }
-.preview-code .hljs-built_in { color: #8be9fd; }
-.preview-code .hljs-literal { color: #bd93f9; }
-.preview-code .hljs-type { color: #8be9fd; }
-.preview-code .hljs-params { color: #ffb86c; }
-.preview-code .hljs-meta { color: #f8f8f2; }
-.preview-code .hljs-title { color: #50fa7b; }
+/* highlight.js 主题 (Dracula) */
+.code-content .hljs {
+    background: transparent;
+    padding: 0;
+}
+
+.code-content .hljs-keyword { color: #ff79c6; }
+.code-content .hljs-string { color: #f1fa8c; }
+.code-content .hljs-number { color: #bd93f9; }
+.code-content .hljs-comment { color: #6272a4; }
+.code-content .hljs-function { color: #50fa7b; }
+.code-content .hljs-class { color: #8be9fd; }
+.code-content .hljs-variable { color: #f8f8f2; }
+.code-content .hljs-operator { color: #ff79c6; }
+.code-content .hljs-punctuation { color: #f8f8f2; }
+.code-content .hljs-property { color: #66d9ef; }
+.code-content .hljs-attr { color: #50fa7b; }
+.code-content .hljs-tag { color: #ff79c6; }
+.code-content .hljs-name { color: #ff79c6; }
+.code-content .hljs-selector-tag { color: #ff79c6; }
+.code-content .hljs-selector-class { color: #50fa7b; }
+.code-content .hljs-selector-id { color: #8be9fd; }
+.code-content .hljs-built_in { color: #8be9fd; }
+.code-content .hljs-literal { color: #bd93f9; }
+.code-content .hljs-type { color: #8be9fd; }
+.code-content .hljs-params { color: #ffb86c; }
+.code-content .hljs-meta { color: #f8f8f2; }
+.code-content .hljs-title { color: #50fa7b; }
 
 .preview-footer {
     background: #161b22;
