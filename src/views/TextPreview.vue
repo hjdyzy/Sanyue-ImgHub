@@ -185,6 +185,16 @@ export default {
             this.fileName = Array.isArray(pathParam) ? pathParam.join('/') : pathParam.replace(/,/g, '/');
             this.displayName = this.fileName.split('/').pop();
 
+            // 检查是否是支持的文本文件类型
+            if (!this.isTextFile(this.displayName)) {
+                // 不是文本文件，直接跳转到文件地址
+                const fileUrl = process.env.NODE_ENV === 'production'
+                    ? `/file/${this.fileName}`
+                    : `/api/file/${this.fileName}`;
+                window.location.href = fileUrl;
+                return;
+            }
+
             try {
                 const fileUrl = process.env.NODE_ENV === 'production'
                     ? `/file/${this.fileName}`
@@ -210,6 +220,44 @@ export default {
                 this.error = error.message;
                 this.loading = false;
             }
+        },
+        isTextFile(fileName) {
+            const ext = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+            const baseName = fileName.split('/').pop().toLowerCase();
+
+            // 特殊文件名
+            const specialFiles = ['dockerfile', 'makefile', 'rakefile', '.gitignore', '.dockerignore', '.editorconfig', '.env'];
+            if (specialFiles.includes(baseName)) return true;
+
+            // 支持的文本文件扩展名
+            const textExtensions = [
+                // JavaScript/TypeScript
+                'js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx',
+                // Python
+                'py',
+                // Shell scripts
+                'sh', 'bash', 'zsh', 'fish', 'bat', 'cmd', 'ps1',
+                // Config/Data formats
+                'json', 'jsonc', 'json5',
+                'xml', 'html', 'htm', 'xhtml',
+                'css', 'scss', 'sass', 'less',
+                'yaml', 'yml', 'toml', 'ini', 'conf', 'config', 'cfg', 'cnf', 'properties', 'env',
+                // Markdown
+                'md', 'markdown',
+                // SQL
+                'sql', 'prisma',
+                // Programming languages
+                'go', 'rs', 'php', 'java', 'c', 'h', 'cpp', 'cc', 'cxx', 'hpp', 'hh', 'hxx',
+                'rb', 'swift', 'kt', 'kts', 'scala', 'pl', 'lua', 'r',
+                // Frontend frameworks
+                'vue', 'svelte', 'astro',
+                // GraphQL
+                'graphql', 'gql',
+                // Plain text
+                'txt', 'text', 'log', 'csv', 'tsv', 'dat'
+            ];
+
+            return textExtensions.includes(ext);
         },
         getLanguageFromExt(fileName) {
             const ext = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
