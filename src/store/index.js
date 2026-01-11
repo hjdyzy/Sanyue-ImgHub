@@ -17,6 +17,7 @@ export default createStore({
       convertToWebp: undefined,
     },
     storeUploadChannel: '',
+    storeChannelName: '', // 指定的渠道名称
     storeAutoRetry: true,
     storeUploadNameType: '',
     uploadFolder: '',
@@ -43,6 +44,7 @@ export default createStore({
     uploadCopyUrlForm: state => state.uploadCopyUrlForm,
     compressConfig: state => state.compressConfig,
     storeUploadChannel: state => state.storeUploadChannel,
+    storeChannelName: state => state.storeChannelName,
     storeUploadNameType: state => state.storeUploadNameType,
     customUrlSettings: state => state.customUrlSettings,
     storeAutoRetry: state => state.storeAutoRetry,
@@ -76,6 +78,9 @@ export default createStore({
     },
     setStoreUploadChannel(state, uploadChannel) {
       state.storeUploadChannel = uploadChannel;
+    },
+    setStoreChannelName(state, channelName) {
+      state.storeChannelName = channelName;
     },
     setStoreUploadNameType(state, storeUploadNameType) {
       state.storeUploadNameType = storeUploadNameType;
