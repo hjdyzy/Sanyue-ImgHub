@@ -34,7 +34,7 @@ export default createStore({
     useDarkMode: null,
     cusDarkMode: false,
     // 代码高亮主题
-    codeTheme: 'github-dark',
+    codeTheme: 'tokyo-night-dark',
   },
   getters: {
     userConfig: state => state.userConfig,
