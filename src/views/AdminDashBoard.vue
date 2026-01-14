@@ -4092,7 +4092,7 @@ html.dark .mobile-drawer {
 
 /* 文本预览弹窗样式 */
 .text-preview-dialog {
-    --el-dialog-bg-color: #1e1e2e;
+    --el-dialog-bg-color: #24292e;
 }
 
 .text-preview-dialog :deep(.el-dialog) {
@@ -4117,14 +4117,14 @@ html.dark .mobile-drawer {
 
 .text-preview-dialog :deep(.el-dialog__body) {
     padding: 0;
-    background: #1e1e2e;
+    background: #24292e;
     flex: 1;
     overflow: hidden;
     min-height: 0;
 }
 
 .text-preview-dialog-content {
-    max-height: 65vh;
+    max-height: 55vh;
     overflow: auto;
 }
 
@@ -4150,13 +4150,13 @@ html.dark .mobile-drawer {
 
 .text-preview-code-container {
     padding: 20px;
-    background: #1e1e2e;
+    background: #24292e;
 }
 
 /* VSCode 风格代码编辑器 */
 .code-editor {
     display: flex;
-    background: #0d1117;
+    background: #24292e;
     border-radius: 6px;
     overflow: hidden;
     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
@@ -4167,7 +4167,7 @@ html.dark .mobile-drawer {
 .line-numbers {
     flex-shrink: 0;
     padding: 16px 0;
-    background: #0d1117;
+    background: #24292e;
     border-right: 1px solid #30363d;
     text-align: right;
     user-select: none;
@@ -4190,7 +4190,7 @@ html.dark .mobile-drawer {
     margin: 0;
     padding: 16px;
     overflow-x: auto;
-    background: #0d1117;
+    background: #24292e;
 }
 
 .code-content code {

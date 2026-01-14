@@ -354,7 +354,7 @@ export default {
 <style scoped>
 .text-preview-page {
     min-height: 100vh;
-    background: #0d1117;
+    background: #24292e;
     color: #c9d1d9;
 }
 
@@ -437,7 +437,7 @@ export default {
 /* VSCode 风格代码编辑器 */
 .code-editor {
     display: flex;
-    background: #0d1117;
+    background: #24292e;
     border-radius: 6px;
     overflow: hidden;
     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
@@ -448,7 +448,7 @@ export default {
 .line-numbers {
     flex-shrink: 0;
     padding: 16px 0;
-    background: #0d1117;
+    background: #24292e;
     border-right: 1px solid #30363d;
     text-align: right;
     user-select: none;
@@ -471,7 +471,7 @@ export default {
     margin: 0;
     padding: 16px;
     overflow-x: auto;
-    background: #0d1117;
+    background: #24292e;
 }
 
 .code-content code {
