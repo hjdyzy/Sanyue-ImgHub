@@ -94,12 +94,12 @@
             </div>
             <div class="chart-legend">
               <div 
-                v-for="(count, type, index) in indexInfo.typeStats" 
-                :key="type"
+                v-for="(count, status, index) in aggregatedTypeStats" 
+                :key="status"
                 class="legend-item"
               >
                 <span class="legend-color" :style="{ background: getTypeChartColor(index) }"></span>
-                <span class="legend-label">{{ type || '未知类型' }}</span>
+                <span class="legend-label">{{ status }}</span>
                 <span class="legend-value">{{ count.toLocaleString() }}</span>
                 <span class="legend-percent">{{ getPercentage(count, indexInfo.totalFiles) }}%</span>
               </div>
@@ -296,17 +296,27 @@ export default {
         }]
       }
     },
-    // 文件状态图表数据
+    // 文件状态图表数据 - 将Block映射为"已屏蔽"，其余为"正常"
     typeChartData() {
-      const stats = this.indexInfo.typeStats || {}
+      const aggregatedStats = this.aggregatedTypeStats
       return {
-        labels: Object.keys(stats).map(k => k || '未知类型'),
+        labels: Object.keys(aggregatedStats),
         datasets: [{
-          data: Object.values(stats),
-          backgroundColor: this.typeColors.slice(0, Object.keys(stats).length),
+          data: Object.values(aggregatedStats),
+          backgroundColor: this.typeColors.slice(0, Object.keys(aggregatedStats).length),
           borderWidth: 0
         }]
       }
+    },
+    // 聚合后的状态统计：Block -> 已屏蔽，其余 -> 正常
+    aggregatedTypeStats() {
+      const stats = this.indexInfo.typeStats || {}
+      const aggregatedStats = {}
+      for (const [status, count] of Object.entries(stats)) {
+        const mappedStatus = status === 'Block' ? '已屏蔽' : '正常'
+        aggregatedStats[mappedStatus] = (aggregatedStats[mappedStatus] || 0) + count
+      }
+      return aggregatedStats
     },
     // 图表配置
     chartOptions() {
@@ -314,6 +324,10 @@ export default {
         responsive: true,
         maintainAspectRatio: true,
         cutout: '65%',
+        hoverOffset: 8,
+        layout: {
+          padding: 10
+        },
         plugins: {
           legend: {
             display: false
@@ -325,6 +339,7 @@ export default {
             padding: 12,
             cornerRadius: 8,
             displayColors: true,
+            z: 100,
             callbacks: {
               label: (context) => {
                 const value = context.raw
@@ -667,6 +682,7 @@ export default {
   grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
   gap: 20px;
   margin-bottom: 30px;
+  overflow: visible;
 }
 
 .chart-card {
@@ -706,8 +722,8 @@ export default {
 
 .chart-content {
   min-height: 160px;
-  padding: 10px;
-  margin: -10px;
+  padding: 15px;
+  margin: -5px;
 }
 
 .empty-state {
@@ -782,12 +798,13 @@ export default {
 
 .pie-chart-wrapper {
   position: relative;
-  width: 160px;
-  height: 160px;
+  width: 180px;
+  height: 180px;
   flex-shrink: 0;
-  padding: 10px;
-  margin: -10px;
+  padding: 15px;
+  box-sizing: content-box;
   overflow: visible;
+  isolation: isolate;
 }
 
 .chart-center-text {
@@ -797,6 +814,7 @@ export default {
   transform: translate(-50%, -50%);
   text-align: center;
   pointer-events: none;
+  z-index: -1;
 }
 
 .center-value {
