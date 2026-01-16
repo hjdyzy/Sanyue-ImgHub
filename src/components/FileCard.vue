@@ -49,13 +49,13 @@
         </div>
         
         <!-- 图片预览 -->
-        <el-image 
+        <el-image
             v-else-if="isImage"
-            :preview-teleported="true" 
-            :src="fileLink" 
-            :preview-src-list="previewSrcList" 
-            fit="cover" 
-            lazy 
+            :preview-teleported="true"
+            :src="fileLink"
+            :preview-src-list="previewSrcList"
+            fit="cover"
+            lazy
             class="image-preview"
         >
             <template #placeholder>
@@ -68,7 +68,26 @@
                 </div>
             </template>
         </el-image>
-        
+
+        <!-- 文本文件预览 -->
+        <div v-else-if="isTextFile"
+            class="file-preview text-file-card"
+            @click="$emit('textPreview')"
+            @mouseenter="$emit('textHover')"
+            @mouseleave="$emit('textLeave')">
+            <div v-if="textPreviewLoading" class="text-preview-loading">
+                <font-awesome-icon icon="spinner" spin class="loading-icon"/>
+            </div>
+            <div v-else-if="textPreviewHighlighted" class="text-preview-content">
+                <pre><code v-html="textPreviewHighlighted"></code></pre>
+                <div v-if="textPreviewHasMore" class="text-preview-more">...</div>
+            </div>
+            <div v-else class="text-file-placeholder">
+                <font-awesome-icon icon="file-code" class="file-icon text-icon"/>
+                <span class="text-file-hint">悬停预览</span>
+            </div>
+        </div>
+
         <!-- 其他文件 -->
         <div v-else class="file-preview">
             <font-awesome-icon icon="file" class="file-icon"/>
@@ -122,9 +141,12 @@ export default {
         selected: { type: Boolean, default: false },
         fileLink: { type: String, required: true },
         previewSrcList: { type: Array, default: () => [] },
-        disableTooltip: { type: Boolean, default: false }
+        disableTooltip: { type: Boolean, default: false },
+        textPreviewLoading: { type: Boolean, default: false },
+        textPreviewHighlighted: { type: String, default: '' },
+        textPreviewHasMore: { type: Boolean, default: false }
     },
-    emits: ['update:selected', 'detail', 'copy', 'move', 'delete', 'download', 'touchstart', 'touchend', 'touchmove'],
+    emits: ['update:selected', 'detail', 'copy', 'move', 'delete', 'download', 'touchstart', 'touchend', 'touchmove', 'textPreview', 'textHover', 'textLeave'],
     data() {
         return {
             localSelected: this.selected,
@@ -158,9 +180,33 @@ export default {
             if (fileType.includes('image')) return true;
             // 再通过文件后缀判断
             const name = this.item.name?.toLowerCase() || '';
-            return name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') || 
-                   name.endsWith('.gif') || name.endsWith('.webp') || name.endsWith('.svg') || 
+            return name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') ||
+                   name.endsWith('.gif') || name.endsWith('.webp') || name.endsWith('.svg') ||
                    name.endsWith('.bmp') || name.endsWith('.avif') || name.endsWith('.heic') || name.endsWith('.heif');
+        },
+        isTextFile() {
+            const name = this.item.name?.toLowerCase() || '';
+            const fileName = name.split('/').pop();
+
+            // 特殊文件名
+            const specialFiles = ['dockerfile', 'makefile', 'rakefile', '.gitignore', '.dockerignore', '.editorconfig', '.env'];
+            if (specialFiles.includes(fileName)) return true;
+
+            // 文本文件扩展名
+            const textExtensions = [
+                'js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx',
+                'py', 'sh', 'bash', 'zsh', 'fish', 'bat', 'cmd', 'ps1',
+                'json', 'jsonc', 'json5', 'xml', 'html', 'htm', 'xhtml',
+                'css', 'scss', 'sass', 'less', 'yaml', 'yml', 'toml', 'ini',
+                'md', 'markdown', 'sql', 'prisma', 'go', 'rs', 'php', 'java',
+                'c', 'h', 'cpp', 'cc', 'cxx', 'hpp', 'rb', 'swift', 'kt',
+                'scala', 'pl', 'lua', 'r', 'vue', 'svelte', 'astro',
+                'graphql', 'gql', 'txt', 'text', 'log', 'csv', 'tsv', 'dat',
+                'conf', 'config', 'cfg'
+            ];
+
+            const ext = fileName.split('.').pop();
+            return textExtensions.includes(ext);
         },
         displayName() {
             const fileName = this.item.metadata?.FileName || this.item.name || '';
@@ -459,5 +505,79 @@ export default {
 .error-text {
     font-size: 12px;
     color: var(--el-text-color-secondary);
+}
+
+/* 文本文件预览样式 */
+.text-file-card {
+    cursor: pointer;
+    background: #1e1e2e;
+    padding: 8px;
+    overflow: hidden;
+}
+
+.text-file-card:hover {
+    background: #252536;
+}
+
+.text-preview-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    color: #64b5f6;
+}
+
+.loading-icon {
+    font-size: 24px;
+}
+
+.text-preview-content {
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.text-preview-content pre {
+    margin: 0;
+    font-size: 10px;
+    line-height: 1.4;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+.text-preview-content code {
+    color: #c9d1d9;
+    white-space: pre;
+    display: block;
+}
+
+.text-preview-more {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    background: linear-gradient(transparent, #1e1e2e);
+    padding: 10px 0 5px;
+    color: #8b949e;
+    font-size: 12px;
+}
+
+.text-file-placeholder {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    gap: 8px;
+}
+
+.text-icon {
+    color: #64b5f6;
+    opacity: 0.8;
+}
+
+.text-file-hint {
+    font-size: 12px;
+    color: #8b949e;
 }
 </style>

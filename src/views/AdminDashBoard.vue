@@ -128,18 +128,24 @@
                         @touchmove="handleTouchEnd"
                     />
                     <!-- 文件卡片 -->
-                    <FileCard 
+                    <FileCard
                         v-else
                         :item="item"
                         v-model:selected="item.selected"
                         :fileLink="getFileLink(item.name)"
                         :previewSrcList="item.previewSrcList"
                         :disableTooltip="disableTooltip"
+                        :textPreviewLoading="textPreviewCache[item.name]?.loading"
+                        :textPreviewHighlighted="textPreviewCache[item.name]?.highlighted"
+                        :textPreviewHasMore="textPreviewCache[item.name]?.hasMore"
                         @detail="openDetailDialog(index, item.name)"
                         @copy="handleCopy(index, item.name)"
                         @move="handleMove(index, item.name)"
                         @delete="handleDelete(index, item.name)"
                         @download="handleDownload(item.name)"
+                        @textPreview="openTextPreview(item)"
+                        @textHover="handleTextFileHover(item)"
+                        @textLeave="handleTextFileLeave(item)"
                         @touchstart="handleTouchStart(item, index)"
                         @touchend="handleTouchEnd"
                         @touchmove="handleTouchEnd"
@@ -329,6 +335,73 @@
             @navigate="navigateToFolder"
             @goBack="handleGoBack"
         />
+        <!-- 文本预览弹窗 -->
+        <el-dialog
+            v-model="textPreviewDialogVisible"
+            :title="textPreviewDialogData.displayName"
+            class="text-preview-dialog"
+            width="80%"
+            :close-on-click-modal="true"
+        >
+            <div class="text-preview-dialog-content">
+                <div v-if="textPreviewDialogData.loading" class="text-preview-loading-container">
+                    <font-awesome-icon icon="spinner" spin style="font-size: 32px;"/>
+                    <p>加载中...</p>
+                </div>
+                <div v-else-if="textPreviewDialogData.error" class="text-preview-error-container">
+                    <p>加载失败: {{ textPreviewDialogData.error }}</p>
+                </div>
+                <div v-else class="text-preview-code-container">
+                    <div class="code-editor">
+                        <div class="line-numbers" aria-hidden="true">
+                            <span v-for="n in (textPreviewDialogData.content ? textPreviewDialogData.content.split('\n').length : 0)" :key="n">{{ n }}</span>
+                        </div>
+                        <pre class="code-content"><code v-html="textPreviewDialogData.highlighted" class="hljs"></code></pre>
+                    </div>
+                </div>
+            </div>
+            <template #footer>
+                <div class="text-preview-dialog-footer">
+                    <div class="theme-selector-row">
+                        <span class="theme-label">代码主题：</span>
+                        <el-select v-model="currentCodeTheme" @change="handleThemeChange" style="width: 200px;">
+                            <el-option label="Tokyo Night Dark" value="tokyo-night-dark"/>
+                            <el-option label="GitHub Dark" value="github-dark"/>
+                            <el-option label="Dracula" value="dracula"/>
+                            <el-option label="One Dark" value="atom-one-dark"/>
+                            <el-option label="VS Code Dark" value="vs2015"/>
+                            <el-option label="Monokai" value="monokai"/>
+                        </el-select>
+                    </div>
+                    <div class="action-buttons-row">
+                        <el-button @click="copyTextContent" :disabled="textPreviewDialogData.loading">
+                            <span style="margin-right: 4px;">📋</span>
+                            复制文件内容
+                        </el-button>
+                        <el-button @click="copyFileLink" :disabled="textPreviewDialogData.loading">
+                            <span style="margin-right: 4px;">🔗</span>
+                            复制下载链接
+                        </el-button>
+                        <el-button @click="downloadTextFile" :disabled="textPreviewDialogData.loading">
+                            <span style="margin-right: 4px;">💾</span>
+                            下载文件
+                        </el-button>
+                        <el-button @click="copyPreviewLink" :disabled="textPreviewDialogData.loading">
+                            <span style="margin-right: 4px;">👁️</span>
+                            复制预览链接
+                        </el-button>
+                        <el-button @click="openInNewTab" :disabled="textPreviewDialogData.loading">
+                            <span style="margin-right: 4px;">🔖</span>
+                            新标签页打开
+                        </el-button>
+                        <el-button @click="textPreviewDialogVisible = false">
+                            <span style="margin-right: 4px;">❌</span>
+                            关闭
+                        </el-button>
+                    </div>
+                </div>
+            </template>
+        </el-dialog>
     </div>
 </template>
 
@@ -348,6 +421,64 @@ import MobileDirectoryDrawer from '@/components/MobileDirectoryDrawer.vue';
 import { fileManager } from '@/utils/fileManager';
 import fetchWithAuth from '@/utils/fetchWithAuth';
 import { validateFolderPath } from '@/utils/pathValidator';
+
+// highlight.js 模块化导入
+import hljs from 'highlight.js/lib/core';
+import javascript from 'highlight.js/lib/languages/javascript';
+import typescript from 'highlight.js/lib/languages/typescript';
+import python from 'highlight.js/lib/languages/python';
+import bash from 'highlight.js/lib/languages/bash';
+import shell from 'highlight.js/lib/languages/shell';
+import json from 'highlight.js/lib/languages/json';
+import xml from 'highlight.js/lib/languages/xml';
+import css from 'highlight.js/lib/languages/css';
+import sql from 'highlight.js/lib/languages/sql';
+import yaml from 'highlight.js/lib/languages/yaml';
+import markdown from 'highlight.js/lib/languages/markdown';
+import go from 'highlight.js/lib/languages/go';
+import java from 'highlight.js/lib/languages/java';
+import php from 'highlight.js/lib/languages/php';
+import ruby from 'highlight.js/lib/languages/ruby';
+import rust from 'highlight.js/lib/languages/rust';
+import c from 'highlight.js/lib/languages/c';
+import cpp from 'highlight.js/lib/languages/cpp';
+import csharp from 'highlight.js/lib/languages/csharp';
+import swift from 'highlight.js/lib/languages/swift';
+import kotlin from 'highlight.js/lib/languages/kotlin';
+import scala from 'highlight.js/lib/languages/scala';
+import ini from 'highlight.js/lib/languages/ini';
+import dockerfile from 'highlight.js/lib/languages/dockerfile';
+import nginx from 'highlight.js/lib/languages/nginx';
+import plaintext from 'highlight.js/lib/languages/plaintext';
+
+// 注册语言
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('typescript', typescript);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('bash', bash);
+hljs.registerLanguage('shell', shell);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('xml', xml);
+hljs.registerLanguage('html', xml);
+hljs.registerLanguage('css', css);
+hljs.registerLanguage('sql', sql);
+hljs.registerLanguage('yaml', yaml);
+hljs.registerLanguage('markdown', markdown);
+hljs.registerLanguage('go', go);
+hljs.registerLanguage('java', java);
+hljs.registerLanguage('php', php);
+hljs.registerLanguage('ruby', ruby);
+hljs.registerLanguage('rust', rust);
+hljs.registerLanguage('c', c);
+hljs.registerLanguage('cpp', cpp);
+hljs.registerLanguage('csharp', csharp);
+hljs.registerLanguage('swift', swift);
+hljs.registerLanguage('kotlin', kotlin);
+hljs.registerLanguage('scala', scala);
+hljs.registerLanguage('ini', ini);
+hljs.registerLanguage('dockerfile', dockerfile);
+hljs.registerLanguage('nginx', nginx);
+hljs.registerLanguage('plaintext', plaintext);
 
 export default {
 data() {
@@ -389,6 +520,19 @@ data() {
         longPressTimer: null, // 长按计时器
         showMobileDirectoryDrawer: false, // 移动端目录抽屉
         jumpPage: '', // 跳转页码输入
+        // 文本预览相关
+        textPreviewCache: {},
+        textPreviewDialogVisible: false,
+        textPreviewDialogData: {
+            loading: false,
+            error: null,
+            content: '',
+            highlighted: '',
+            fileName: '',
+            displayName: '',
+            fileLink: ''
+        },
+        currentCodeTheme: this.$store?.state?.codeTheme || 'tokyo-night-dark',
     }
 },
 components: {
@@ -1739,6 +1883,149 @@ methods: {
             this.$message.error('复制文件夹链接失败，请重试');
         }
     },
+    // 文本预览相关方法
+    async handleTextFileHover(item) {
+        const fileName = item.name;
+        if (this.textPreviewCache[fileName]) return;
+
+        this.$set(this.textPreviewCache, fileName, { loading: true });
+
+        try {
+            const fileLink = this.getFileLink(fileName);
+            const response = await fetch(fileLink);
+            if (!response.ok) throw new Error('Failed to fetch');
+
+            const text = await response.text();
+            const lines = text.split('\n').slice(0, 15).join('\n');
+            const ext = fileName.split('.').pop().toLowerCase();
+            const langMap = {
+                'js': 'javascript', 'jsx': 'javascript', 'mjs': 'javascript',
+                'ts': 'typescript', 'tsx': 'typescript',
+                'py': 'python', 'sh': 'bash', 'bash': 'bash',
+                'json': 'json', 'xml': 'xml', 'html': 'xml',
+                'css': 'css', 'sql': 'sql', 'yaml': 'yaml', 'yml': 'yaml',
+                'md': 'markdown', 'go': 'go', 'java': 'java',
+                'php': 'php', 'rb': 'ruby', 'rs': 'rust',
+                'c': 'c', 'h': 'c', 'cpp': 'cpp', 'hpp': 'cpp',
+                'cs': 'csharp', 'swift': 'swift', 'kt': 'kotlin',
+                'scala': 'scala', 'ini': 'ini', 'conf': 'ini',
+                'dockerfile': 'dockerfile'
+            };
+            const lang = langMap[ext] || 'plaintext';
+            const highlighted = hljs.highlight(lines, { language: lang }).value;
+
+            this.$set(this.textPreviewCache, fileName, {
+                loading: false,
+                highlighted,
+                hasMore: text.split('\n').length > 15
+            });
+        } catch (error) {
+            this.$set(this.textPreviewCache, fileName, { loading: false, error: true });
+        }
+    },
+    handleTextFileLeave(item) {
+        // 可选：清理缓存或保留
+    },
+    async openTextPreview(item) {
+        const fileName = item.name;
+        const displayName = item.metadata?.FileName || fileName.split('/').pop();
+        const fileLink = this.getFileLink(fileName);
+
+        this.textPreviewDialogData = {
+            loading: true,
+            error: null,
+            content: '',
+            highlighted: '',
+            fileName,
+            displayName,
+            fileLink
+        };
+        this.textPreviewDialogVisible = true;
+
+        try {
+            const response = await fetch(fileLink);
+            if (!response.ok) throw new Error('Failed to fetch');
+
+            const text = await response.text();
+            const ext = fileName.split('.').pop().toLowerCase();
+            const langMap = {
+                'js': 'javascript', 'jsx': 'javascript', 'mjs': 'javascript',
+                'ts': 'typescript', 'tsx': 'typescript',
+                'py': 'python', 'sh': 'bash', 'bash': 'bash',
+                'json': 'json', 'xml': 'xml', 'html': 'xml',
+                'css': 'css', 'sql': 'sql', 'yaml': 'yaml', 'yml': 'yaml',
+                'md': 'markdown', 'go': 'go', 'java': 'java',
+                'php': 'php', 'rb': 'ruby', 'rs': 'rust',
+                'c': 'c', 'h': 'c', 'cpp': 'cpp', 'hpp': 'cpp',
+                'cs': 'csharp', 'swift': 'swift', 'kt': 'kotlin',
+                'scala': 'scala', 'ini': 'ini', 'conf': 'ini',
+                'dockerfile': 'dockerfile'
+            };
+            const lang = langMap[ext] || 'plaintext';
+            const highlighted = hljs.highlight(text, { language: lang }).value;
+
+            this.textPreviewDialogData = {
+                ...this.textPreviewDialogData,
+                loading: false,
+                content: text,
+                highlighted
+            };
+        } catch (error) {
+            this.textPreviewDialogData = {
+                ...this.textPreviewDialogData,
+                loading: false,
+                error: error.message
+            };
+        }
+    },
+    copyTextContent() {
+        const text = this.textPreviewDialogData.content;
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text);
+            this.$message.success('已复制文件内容');
+        } else {
+            this.copyToClipboardFallback(text);
+            this.$message.success('已复制文件内容');
+        }
+    },
+    copyFileLink() {
+        const link = window.location.origin + '/file/' + this.textPreviewDialogData.fileName;
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(link);
+            this.$message.success('已复制下载链接');
+        } else {
+            this.copyToClipboardFallback(link);
+            this.$message.success('已复制下载链接');
+        }
+    },
+    downloadTextFile() {
+        const link = this.textPreviewDialogData.fileLink;
+        const a = document.createElement('a');
+        a.href = link;
+        a.download = this.textPreviewDialogData.displayName;
+        a.click();
+    },
+    copyPreviewLink() {
+        const link = window.location.origin + '/preview/' + this.textPreviewDialogData.fileName;
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(link);
+            this.$message.success('已复制预览链接');
+        } else {
+            this.copyToClipboardFallback(link);
+            this.$message.success('已复制预览链接');
+        }
+    },
+    openInNewTab() {
+        const link = window.location.origin + '/preview/' + this.textPreviewDialogData.fileName;
+        window.open(link, '_blank');
+    },
+    handleThemeChange(theme) {
+        this.currentCodeTheme = theme;
+        this.$store.commit('setCodeTheme', theme);
+    },
+    get dialogLineCount() {
+        return this.textPreviewDialogData.content ? this.textPreviewDialogData.content.split('\n').length : 0;
+    },
 },
 mounted() {
     this.loading = true;
@@ -2510,15 +2797,168 @@ html.dark .header-content:hover {
     .mobile-directory-trigger {
         display: flex;
     }
-    
+
     .desktop-only {
         display: none !important;
     }
-    
+
     .breadcrumb-container {
         padding: 0;
         margin-left: 0;
     }
+}
+
+/* 文本预览弹窗样式 */
+.text-preview-dialog {
+    --el-dialog-bg-color: #24292e;
+}
+
+.text-preview-dialog :deep(.el-dialog) {
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.text-preview-dialog .el-dialog__header {
+    background: #2d2d3d;
+    padding: 16px 20px;
+    margin: 0;
+    border-bottom: 1px solid #3d3d4d;
+    flex-shrink: 0;
+}
+
+.text-preview-dialog .el-dialog__title {
+    color: #c9d1d9;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.text-preview-dialog :deep(.el-dialog__body) {
+    padding: 0;
+    background: #24292e;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.text-preview-dialog-content {
+    max-height: 55vh;
+    overflow: auto;
+}
+
+.text-preview-loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #64b5f6;
+}
+
+.text-preview-loading-container p {
+    margin-top: 16px;
+    color: #8b949e;
+}
+
+.text-preview-error-container {
+    padding: 40px 20px;
+    text-align: center;
+    color: #f85149;
+}
+
+.text-preview-code-container {
+    padding: 20px;
+    background: #24292e;
+}
+
+/* VSCode 风格代码编辑器 */
+.code-editor {
+    display: flex;
+    background: #24292e;
+    border-radius: 6px;
+    overflow: hidden;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.line-numbers {
+    flex-shrink: 0;
+    padding: 16px 0;
+    background: #24292e;
+    border-right: 1px solid #30363d;
+    text-align: right;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    color: #6e7681;
+    min-width: 50px;
+}
+
+.line-numbers span {
+    display: block;
+    padding: 0 16px 0 12px;
+    height: 22.4px;
+    line-height: 22.4px;
+}
+
+.code-content {
+    flex: 1;
+    margin: 0;
+    padding: 16px;
+    overflow-x: auto;
+    background: #24292e;
+}
+
+.code-content code {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: 1.6;
+    color: #c9d1d9;
+    white-space: pre;
+    display: block;
+    text-align: left;
+}
+
+.code-content code .hljs {
+    background: transparent;
+    padding: 0;
+}
+
+.code-content .hljs {
+    background: transparent;
+    padding: 0;
+}
+
+.text-preview-dialog-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: transparent;
+}
+
+.theme-selector-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.theme-label {
+    color: #c9d1d9;
+    font-size: 14px;
+}
+
+.action-buttons-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.text-preview-dialog :deep(.el-dialog__footer) {
+    background: transparent;
+    border-top: 1px solid #30363d;
+    padding: 16px 20px;
 }
 
 </style>
