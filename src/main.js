@@ -103,6 +103,8 @@ const presetSiteIcon = (isDarkMode, userConfig) => {
     document.head.appendChild(maskIconLink);
 };
 
+app.use(head).use(store).use(router).use(ElementPlus);
+
 store.dispatch('fetchUserConfig').then(() => {
     // 初始化时应用 dark 模式
     initDarkModeClass();
@@ -136,10 +138,10 @@ store.dispatch('fetchUserConfig').then(() => {
         }
     });
 
-    app.use(store).use(router).use(ElementPlus).mount('#app');
+    app.mount('#app');
 }).catch(error => {
     console.error('Failed to load user configuration:', error);
     // 即使配置加载失败也要加载默认主题
     loadHighlightTheme(store.state.codeTheme);
-    app.use(store).use(router).use(ElementPlus).use(head).mount('#app');
+    app.mount('#app');
 })

@@ -365,12 +365,12 @@
                     <div class="theme-selector-row">
                         <span class="theme-label">代码主题：</span>
                         <el-select v-model="currentCodeTheme" @change="handleThemeChange" style="width: 200px;">
-                            <el-option label="Tokyo Night Dark" value="tokyo-night-dark"/>
-                            <el-option label="GitHub Dark" value="github-dark"/>
-                            <el-option label="Dracula" value="dracula"/>
-                            <el-option label="One Dark" value="atom-one-dark"/>
-                            <el-option label="VS Code Dark" value="vs2015"/>
-                            <el-option label="Monokai" value="monokai"/>
+                            <el-option
+                                v-for="theme in darkThemes"
+                                :key="theme.value"
+                                :label="theme.label"
+                                :value="theme.value"
+                            />
                         </el-select>
                     </div>
                     <div class="action-buttons-row">
@@ -421,6 +421,7 @@ import MobileDirectoryDrawer from '@/components/MobileDirectoryDrawer.vue';
 import { fileManager } from '@/utils/fileManager';
 import fetchWithAuth from '@/utils/fetchWithAuth';
 import { validateFolderPath } from '@/utils/pathValidator';
+import { darkThemes } from '@/utils/highlightTheme';
 
 // highlight.js 模块化导入
 import hljs from 'highlight.js/lib/core';
@@ -533,6 +534,7 @@ data() {
             fileLink: ''
         },
         currentCodeTheme: this.$store?.state?.codeTheme || 'tokyo-night-dark',
+        darkThemes,
     }
 },
 components: {
@@ -672,6 +674,11 @@ computed: {
     },
     pagerCount() {
         return window.innerWidth < 768 ? 3 : 7;
+    },
+    dialogLineCount() {
+        return this.textPreviewDialogData?.content
+            ? this.textPreviewDialogData.content.split('\n').length
+            : 0;
     }
 },
 watch: {
@@ -1888,7 +1895,7 @@ methods: {
         const fileName = item.name;
         if (this.textPreviewCache[fileName]) return;
 
-        this.$set(this.textPreviewCache, fileName, { loading: true });
+        this.textPreviewCache[fileName] = { loading: true };
 
         try {
             const fileLink = this.getFileLink(fileName);
@@ -1914,13 +1921,13 @@ methods: {
             const lang = langMap[ext] || 'plaintext';
             const highlighted = hljs.highlight(lines, { language: lang }).value;
 
-            this.$set(this.textPreviewCache, fileName, {
+            this.textPreviewCache[fileName] = {
                 loading: false,
                 highlighted,
                 hasMore: text.split('\n').length > 15
-            });
+            };
         } catch (error) {
-            this.$set(this.textPreviewCache, fileName, { loading: false, error: true });
+            this.textPreviewCache[fileName] = { loading: false, error: true };
         }
     },
     handleTextFileLeave(item) {
@@ -2022,9 +2029,6 @@ methods: {
     handleThemeChange(theme) {
         this.currentCodeTheme = theme;
         this.$store.commit('setCodeTheme', theme);
-    },
-    get dialogLineCount() {
-        return this.textPreviewDialogData.content ? this.textPreviewDialogData.content.split('\n').length : 0;
     },
 },
 mounted() {
@@ -2884,7 +2888,7 @@ html.dark .header-content:hover {
 
 .line-numbers {
     flex-shrink: 0;
-    padding: 16px 0;
+    padding: 16px 6px;
     background: #24292e;
     border-right: 1px solid #30363d;
     text-align: right;
@@ -2893,14 +2897,17 @@ html.dark .header-content:hover {
     -moz-user-select: none;
     -ms-user-select: none;
     color: #6e7681;
-    min-width: 50px;
+    min-width: 4ch;
+    font-variant-numeric: tabular-nums;
 }
 
 .line-numbers span {
     display: block;
-    padding: 0 16px 0 12px;
+    width: 100%;
+    padding: 0 2px 0 0;
     height: 22.4px;
     line-height: 22.4px;
+    text-align: right;
 }
 
 .code-content {
@@ -2945,14 +2952,24 @@ html.dark .header-content:hover {
 }
 
 .theme-label {
-    color: #c9d1d9;
+    color: #1f2328;
     font-size: 14px;
+    font-weight: 600;
+}
+
+.dark .text-preview-dialog .theme-label {
+    color: #e6edf3;
 }
 
 .action-buttons-row {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+    justify-content: flex-end;
+    width: 100%;
+    border-top: 1px solid #30363d;
+    padding-top: 12px;
+    margin-top: 4px;
 }
 
 .text-preview-dialog :deep(.el-dialog__footer) {

@@ -929,12 +929,12 @@ export default {
       }
 
       // 设置加载状态
-      this.$set(this.textPreviewCache, fileName, {
+      this.textPreviewCache[fileName] = {
         content: '',
         highlighted: '',
         loading: true,
         error: null
-      });
+      };
 
       try {
         const response = await fetch(this.getFileUrl(fileName));
@@ -959,22 +959,22 @@ export default {
         }
 
         // 更新缓存
-        this.$set(this.textPreviewCache, fileName, {
+        this.textPreviewCache[fileName] = {
           content: preview,
           highlighted,
           loading: false,
           error: null,
           hasMore: lines.length >= 10
-        });
+        };
 
         return this.textPreviewCache[fileName];
       } catch (error) {
-        this.$set(this.textPreviewCache, fileName, {
+        this.textPreviewCache[fileName] = {
           content: '',
           highlighted: '',
           loading: false,
           error: error.message
-        });
+        };
         return this.textPreviewCache[fileName];
       }
     },

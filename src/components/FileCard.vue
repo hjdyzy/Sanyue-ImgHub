@@ -513,6 +513,7 @@ export default {
     background: #1e1e2e;
     padding: 8px;
     overflow: hidden;
+    display: block;
 }
 
 .text-file-card:hover {
@@ -535,6 +536,8 @@ export default {
     height: 100%;
     overflow: hidden;
     position: relative;
+    width: 100%;
+    text-align: left;
 }
 
 .text-preview-content pre {
@@ -542,12 +545,14 @@ export default {
     font-size: 10px;
     line-height: 1.4;
     font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    text-align: left;
 }
 
 .text-preview-content code {
     color: #c9d1d9;
     white-space: pre;
     display: block;
+    text-align: left;
 }
 
 .text-preview-more {

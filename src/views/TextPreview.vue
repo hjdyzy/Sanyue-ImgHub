@@ -447,7 +447,7 @@ export default {
 
 .line-numbers {
     flex-shrink: 0;
-    padding: 16px 0;
+    padding: 16px 6px;
     background: #24292e;
     border-right: 1px solid #30363d;
     text-align: right;
@@ -456,14 +456,17 @@ export default {
     -moz-user-select: none;
     -ms-user-select: none;
     color: #6e7681;
-    min-width: 50px;
+    min-width: 4ch;
+    font-variant-numeric: tabular-nums;
 }
 
 .line-numbers span {
     display: block;
-    padding: 0 16px 0 12px;
+    width: 100%;
+    padding: 0 2px 0 0;
     height: 22.4px;
     line-height: 22.4px;
+    text-align: right;
 }
 
 .code-content {
