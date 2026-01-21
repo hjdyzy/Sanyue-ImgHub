@@ -523,6 +523,7 @@ data() {
         jumpPage: '', // 跳转页码输入
         // 文本预览相关
         textPreviewCache: {},
+        hoverTimers: {}, // 悬停计时器
         textPreviewDialogVisible: false,
         textPreviewDialogData: {
             loading: false,
@@ -1893,45 +1894,61 @@ methods: {
     // 文本预览相关方法
     async handleTextFileHover(item) {
         const fileName = item.name;
+
+        // 清除已存在的计时器
+        if (this.hoverTimers[fileName]) {
+            clearTimeout(this.hoverTimers[fileName]);
+        }
+
+        // 如果已经加载过，直接返回
         if (this.textPreviewCache[fileName]) return;
 
-        this.textPreviewCache[fileName] = { loading: true };
+        // 设置新的计时器（500ms后加载）
+        this.hoverTimers[fileName] = setTimeout(async () => {
+            this.textPreviewCache[fileName] = { loading: true };
 
-        try {
-            const fileLink = this.getFileLink(fileName);
-            const response = await fetch(fileLink);
-            if (!response.ok) throw new Error('Failed to fetch');
+            try {
+                const fileLink = this.getFileLink(fileName);
+                const response = await fetch(fileLink);
+                if (!response.ok) throw new Error('Failed to fetch');
 
-            const text = await response.text();
-            const lines = text.split('\n').slice(0, 15).join('\n');
-            const ext = fileName.split('.').pop().toLowerCase();
-            const langMap = {
-                'js': 'javascript', 'jsx': 'javascript', 'mjs': 'javascript',
-                'ts': 'typescript', 'tsx': 'typescript',
-                'py': 'python', 'sh': 'bash', 'bash': 'bash',
-                'json': 'json', 'xml': 'xml', 'html': 'xml',
-                'css': 'css', 'sql': 'sql', 'yaml': 'yaml', 'yml': 'yaml',
-                'md': 'markdown', 'go': 'go', 'java': 'java',
-                'php': 'php', 'rb': 'ruby', 'rs': 'rust',
-                'c': 'c', 'h': 'c', 'cpp': 'cpp', 'hpp': 'cpp',
-                'cs': 'csharp', 'swift': 'swift', 'kt': 'kotlin',
-                'scala': 'scala', 'ini': 'ini', 'conf': 'ini',
-                'dockerfile': 'dockerfile'
-            };
-            const lang = langMap[ext] || 'plaintext';
-            const highlighted = hljs.highlight(lines, { language: lang }).value;
+                const text = await response.text();
+                const lines = text.split('\n').slice(0, 15).join('\n');
+                const ext = fileName.split('.').pop().toLowerCase();
+                const langMap = {
+                    'js': 'javascript', 'jsx': 'javascript', 'mjs': 'javascript',
+                    'ts': 'typescript', 'tsx': 'typescript',
+                    'py': 'python', 'sh': 'bash', 'bash': 'bash',
+                    'json': 'json', 'xml': 'xml', 'html': 'xml',
+                    'css': 'css', 'sql': 'sql', 'yaml': 'yaml', 'yml': 'yaml',
+                    'md': 'markdown', 'go': 'go', 'java': 'java',
+                    'php': 'php', 'rb': 'ruby', 'rs': 'rust',
+                    'c': 'c', 'h': 'c', 'cpp': 'cpp', 'hpp': 'cpp',
+                    'cs': 'csharp', 'swift': 'swift', 'kt': 'kotlin',
+                    'scala': 'scala', 'ini': 'ini', 'conf': 'ini',
+                    'dockerfile': 'dockerfile'
+                };
+                const lang = langMap[ext] || 'plaintext';
+                const highlighted = hljs.highlight(lines, { language: lang }).value;
 
-            this.textPreviewCache[fileName] = {
-                loading: false,
-                highlighted,
-                hasMore: text.split('\n').length > 15
-            };
-        } catch (error) {
-            this.textPreviewCache[fileName] = { loading: false, error: true };
-        }
+                this.textPreviewCache[fileName] = {
+                    loading: false,
+                    highlighted,
+                    hasMore: text.split('\n').length > 15
+                };
+            } catch (error) {
+                this.textPreviewCache[fileName] = { loading: false, error: true };
+            }
+        }, 500);
     },
     handleTextFileLeave(item) {
-        // 可选：清理缓存或保留
+        const fileName = item.name;
+
+        // 清除计时器
+        if (this.hoverTimers[fileName]) {
+            clearTimeout(this.hoverTimers[fileName]);
+            delete this.hoverTimers[fileName];
+        }
     },
     async openTextPreview(item) {
         const fileName = item.name;
