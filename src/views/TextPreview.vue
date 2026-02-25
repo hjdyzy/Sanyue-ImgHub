@@ -1,34 +1,51 @@
 <template>
     <div class="text-preview-page">
-        <header class="preview-header">
+        <div class="preview-header">
             <h1>{{ displayName }}</h1>
-            <div class="header-actions">
-                <el-select v-model="currentCodeTheme" size="small" style="width: 160px;" @change="handleThemeChange">
-                    <el-option v-for="t in darkThemes" :key="t.value" :label="t.label" :value="t.value" />
-                </el-select>
-                <el-button size="small" @click="copyContent">复制内容</el-button>
-                <el-button size="small" @click="copyFileLink">复制下载链接</el-button>
-                <el-button size="small" @click="downloadFile">下载</el-button>
-            </div>
-        </header>
-        <main class="preview-main">
-            <div v-if="loading" class="loading-state">
-                <el-icon class="is-loading" :size="32"><Loading /></el-icon>
-                <span>加载中...</span>
-            </div>
-            <div v-else-if="error" class="error-state">{{ error }}</div>
-            <div v-else class="code-editor">
-                <div class="line-numbers">
-                    <span v-for="n in lineCount" :key="n">{{ n }}</span>
+            <div class="preview-header-right">
+                <div class="theme-selector">
+                    <span class="theme-label">主题：</span>
+                    <el-select v-model="currentCodeTheme" @change="handleThemeChange" style="width: 180px;">
+                        <el-option v-for="t in darkThemes" :key="t.value" :label="t.label" :value="t.value" />
+                    </el-select>
                 </div>
-                <pre class="code-content"><code v-html="highlighted" class="hljs"></code></pre>
+                <div class="preview-actions">
+                    <el-button @click="copyContent" :disabled="loading">
+                        <span style="margin-right: 4px;">📋</span>复制文件内容
+                    </el-button>
+                    <el-button @click="copyFileLink" :disabled="loading">
+                        <span style="margin-right: 4px;">🔗</span>复制下载链接
+                    </el-button>
+                    <el-button @click="downloadFile" :disabled="loading">
+                        <span style="margin-right: 4px;">⬇️</span>下载文件
+                    </el-button>
+                </div>
             </div>
-        </main>
-        <footer v-if="!loading && !error" class="preview-footer">
-            <span>{{ lineCount }} 行</span>
-            <span>{{ charCount }} 字符</span>
-            <span>{{ formattedFileSize }}</span>
-        </footer>
+        </div>
+        <div class="preview-content">
+            <div v-if="loading" class="preview-loading">
+                <el-icon class="is-loading" :size="40"><Loading /></el-icon>
+                <p>加载中...</p>
+            </div>
+            <div v-else-if="error" class="preview-error">
+                <p>加载失败: {{ error }}</p>
+            </div>
+            <div v-else class="preview-code">
+                <div class="code-editor">
+                    <div class="line-numbers" aria-hidden="true">
+                        <span v-for="n in lineCount" :key="n">{{ n }}</span>
+                    </div>
+                    <pre class="code-content"><code v-html="highlighted" class="hljs"></code></pre>
+                </div>
+            </div>
+        </div>
+        <div class="preview-footer" v-if="!loading && !error">
+            <div class="stats">
+                <span>📏 共 <strong>{{ lineCount.toLocaleString() }}</strong> 行</span>
+                <span>📝 共 <strong>{{ charCount.toLocaleString() }}</strong> 字符</span>
+                <span>💾 文件大小: <strong>{{ formattedFileSize }}</strong></span>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -139,8 +156,8 @@ export default {
 <style scoped>
 .text-preview-page {
     min-height: 100vh;
-    background: #24292e;
-    color: #c9d1d9;
+    background: #1e1e1e;
+    color: #d4d4d4;
     display: flex;
     flex-direction: column;
 }
@@ -148,38 +165,71 @@ export default {
     position: sticky;
     top: 0;
     z-index: 10;
-    background: #161b22;
-    padding: 12px 20px;
+    background: #252526;
+    padding: 20px 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 10px;
-    border-bottom: 1px solid #30363d;
+    gap: 12px;
+    border-bottom: 1px solid #3c3c3c;
 }
 .preview-header h1 {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 600;
     margin: 0;
-    color: #c9d1d9;
+    color: #d4d4d4;
 }
-.header-actions {
+.preview-header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.theme-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.theme-label {
+    font-size: 14px;
+    color: #d4d4d4;
+    white-space: nowrap;
+}
+.preview-actions {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
 }
-.preview-main {
+.preview-content {
     flex: 1;
+    padding: 24px;
     overflow: auto;
 }
-.loading-state, .error-state {
+.preview-loading {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 60px;
     gap: 12px;
+    color: #858585;
+}
+.preview-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px;
+    gap: 12px;
+    color: #f85149;
+}
+.preview-code {
+    background: #1e1e1e;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #3c3c3c;
 }
 .code-editor {
     display: flex;
@@ -188,42 +238,62 @@ export default {
 .line-numbers {
     display: flex;
     flex-direction: column;
-    padding: 12px 12px 12px 16px;
+    padding: 16px 6px 16px 12px;
     text-align: right;
     user-select: none;
-    color: #6e7681;
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    color: #858585;
+    font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
     font-size: 14px;
-    line-height: 22.4px;
+    line-height: 1.6;
     font-variant-numeric: tabular-nums;
-    border-right: 1px solid #30363d;
-    background: #0d1117;
+    border-right: 1px solid #3c3c3c;
+    background: #1e1e1e;
+    min-width: 48px;
 }
 .code-content {
     flex: 1;
     margin: 0;
-    padding: 12px 16px;
+    padding: 16px;
     overflow-x: auto;
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace;
     font-size: 14px;
     line-height: 1.6;
+    background: #1e1e1e;
+}
+.code-content code {
+    text-align: left;
+    white-space: pre;
+    display: block;
+    color: #d4d4d4;
 }
 .code-content .hljs {
     background: transparent !important;
+    text-align: left;
+    white-space: pre;
+    display: block;
 }
 .preview-footer {
-    background: #161b22;
-    padding: 8px 20px;
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    background: #252526;
+    padding: 16px 24px;
     display: flex;
     justify-content: center;
-    gap: 20px;
+    border-top: 1px solid #3c3c3c;
+}
+.stats {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
     font-size: 13px;
-    color: #8b949e;
-    border-top: 1px solid #30363d;
+    color: #858585;
     flex-wrap: wrap;
 }
 @media (max-width: 768px) {
-    .preview-header { padding: 10px 12px; }
-    .preview-footer { gap: 12px; }
+    .preview-header { padding: 12px 16px; }
+    .preview-content { padding: 12px; }
+    .preview-footer { padding: 12px 16px; }
+    .stats { gap: 12px; }
 }
 </style>

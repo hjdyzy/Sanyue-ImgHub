@@ -309,18 +309,17 @@
             <template #footer>
                 <div class="text-preview-footer">
                     <div class="theme-selector">
-                        <span style="font-size: 12px; margin-right: 8px;">主题:</span>
+                        <span class="theme-label">主题:</span>
                         <el-select v-model="currentCodeTheme" size="small" style="width: 160px;" @change="handleThemeChange">
                             <el-option v-for="t in darkThemes" :key="t.value" :label="t.label" :value="t.value" />
                         </el-select>
                     </div>
                     <div class="action-buttons">
-                        <el-button size="small" @click="copyTextContent">复制内容</el-button>
-                        <el-button size="small" @click="copyFileLink">复制下载链接</el-button>
-                        <el-button size="small" @click="downloadTextFile">下载</el-button>
-                        <el-button size="small" @click="copyPreviewLink">复制预览链接</el-button>
-                        <el-button size="small" @click="openInNewTab">新标签打开</el-button>
-                        <el-button size="small" @click="textPreviewDialogVisible = false">关闭</el-button>
+                        <el-button @click="copyTextContent">📋 复制内容</el-button>
+                        <el-button @click="copyFileLink">🔗 复制下载链接</el-button>
+                        <el-button @click="copyPreviewLink">👁 复制预览链接</el-button>
+                        <el-button @click="openInNewTab">🔖 新标签打开</el-button>
+                        <el-button @click="downloadTextFile">⬇️ 下载</el-button>
                     </div>
                 </div>
             </template>
@@ -2132,23 +2131,24 @@ mounted() {
 <style scoped>
 /* 文本预览弹窗 */
 .text-preview-dialog :deep(.el-dialog) {
-    background: #24292e;
+    background: #1e1e1e;
     max-height: 85vh;
     display: flex;
     flex-direction: column;
 }
 .text-preview-dialog :deep(.el-dialog__header) {
-    background: #2d2d3d;
-    border-bottom: 1px solid #444;
-    color: #c9d1d9;
+    background: #252526;
+    border-bottom: 1px solid #3c3c3c;
+    color: #d4d4d4;
 }
 .text-preview-dialog :deep(.el-dialog__title) {
-    color: #c9d1d9;
+    color: #d4d4d4;
 }
 .text-preview-dialog :deep(.el-dialog__body) {
     padding: 0;
     flex: 1;
     overflow: hidden;
+    background: #1e1e1e;
 }
 .text-preview-dialog-content {
     max-height: 55vh;
@@ -2164,13 +2164,13 @@ mounted() {
     padding: 12px 12px 12px 16px;
     text-align: right;
     user-select: none;
-    color: #6e7681;
+    color: #858585;
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 14px;
     line-height: 22.4px;
     font-variant-numeric: tabular-nums;
-    border-right: 1px solid #444;
-    background: #1e1e2e;
+    border-right: 1px solid #3c3c3c;
+    background: #1e1e1e;
 }
 .code-content {
     flex: 1;
@@ -2180,32 +2180,44 @@ mounted() {
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 14px;
     line-height: 1.6;
-    background: transparent;
+    background: #1e1e1e;
+}
+.code-content code {
+    text-align: left;
+    white-space: pre;
+    display: block;
+    color: #d4d4d4;
 }
 .code-content .hljs {
     background: transparent !important;
+    text-align: left;
+    white-space: pre;
+    display: block;
 }
 .text-preview-footer {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
     gap: 10px;
-    border-top: 1px solid #444;
+    border-top: 1px solid #3c3c3c;
     padding-top: 10px;
 }
 .theme-selector {
     display: flex;
     align-items: center;
-    color: #c9d1d9;
+    gap: 8px;
+}
+.theme-label {
+    color: var(--el-text-color-primary);
+    font-size: 13px;
+    white-space: nowrap;
 }
 .action-buttons {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     justify-content: flex-end;
-}
-.text-preview-dialog :deep(.el-dialog__footer) {
-    background: #24292e;
-    border-top: none;
 }
 
 .container {

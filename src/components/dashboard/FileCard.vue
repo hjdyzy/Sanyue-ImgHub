@@ -488,7 +488,7 @@ export default {
     color: var(--el-text-color-secondary);
 }
 .text-file-card {
-    background: #1e1e2e;
+    background: #1e1e1e;
     cursor: pointer;
     padding: 8px;
 }
@@ -505,8 +505,10 @@ export default {
     line-height: 1.4;
 }
 .text-preview-content code {
-    color: #c9d1d9;
+    color: #d4d4d4;
     white-space: pre;
+    text-align: left;
+    display: block;
 }
 .text-preview-more {
     position: absolute;
