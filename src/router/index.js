@@ -105,6 +105,11 @@ const routes = [
     component: () => import('../views/PublicBrowse.vue'),
   },
   {
+    path: '/preview/:path*',
+    name: 'textPreview',
+    component: () => import('../views/TextPreview.vue'),
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'notFound',
     component: () => import('../views/NotFound.vue'),

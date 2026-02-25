@@ -142,18 +142,24 @@
                         @touchmove="handleTouchEnd"
                     />
                     <!-- 文件卡片 -->
-                    <FileCard 
+                    <FileCard
                         v-else
                         :item="item"
                         v-model:selected="item.selected"
                         :fileLink="getFileLink(item.name)"
                         :previewSrcList="item.previewSrcList"
                         :disableTooltip="disableTooltip"
+                        :textPreviewLoading="textPreviewCache[item.name]?.loading"
+                        :textPreviewHighlighted="textPreviewCache[item.name]?.highlighted"
+                        :textPreviewHasMore="textPreviewCache[item.name]?.hasMore"
                         @detail="openDetailDialog(index, item.name)"
                         @copy="handleCopy(index, item.name)"
                         @move="handleMove(index, item.name)"
                         @delete="handleDelete(index, item.name)"
                         @download="handleDownload(item.name)"
+                        @textPreview="openTextPreview(item)"
+                        @textHover="handleTextFileHover(item)"
+                        @textLeave="handleTextFileLeave(item)"
                         @touchstart="handleTouchStart(item, index)"
                         @touchend="handleTouchEnd"
                         @touchmove="handleTouchEnd"
@@ -278,6 +284,47 @@
             @metadataUpdated="handleMetadataUpdated"
             @fileRenamed="handleFileRenamed"
         />
+        <!-- 文本预览弹窗 -->
+        <el-dialog
+            :title="textPreviewDialogData.displayName"
+            v-model="textPreviewDialogVisible"
+            width="80%"
+            :close-on-click-modal="true"
+            class="text-preview-dialog"
+        >
+            <div class="text-preview-dialog-content">
+                <div v-if="textPreviewDialogData.loading" style="text-align: center; padding: 40px;">
+                    <font-awesome-icon icon="spinner" spin style="font-size: 24px;" />
+                </div>
+                <div v-else-if="textPreviewDialogData.error" style="text-align: center; padding: 40px; color: #f56c6c;">
+                    {{ textPreviewDialogData.error }}
+                </div>
+                <div v-else class="code-editor">
+                    <div class="line-numbers">
+                        <span v-for="n in textPreviewDialogData.content.split('\n').length" :key="n">{{ n }}</span>
+                    </div>
+                    <pre class="code-content"><code v-html="textPreviewDialogData.highlighted" class="hljs"></code></pre>
+                </div>
+            </div>
+            <template #footer>
+                <div class="text-preview-footer">
+                    <div class="theme-selector">
+                        <span style="font-size: 12px; margin-right: 8px;">主题:</span>
+                        <el-select v-model="currentCodeTheme" size="small" style="width: 160px;" @change="handleThemeChange">
+                            <el-option v-for="t in darkThemes" :key="t.value" :label="t.label" :value="t.value" />
+                        </el-select>
+                    </div>
+                    <div class="action-buttons">
+                        <el-button size="small" @click="copyTextContent">复制内容</el-button>
+                        <el-button size="small" @click="copyFileLink">复制下载链接</el-button>
+                        <el-button size="small" @click="downloadTextFile">下载</el-button>
+                        <el-button size="small" @click="copyPreviewLink">复制预览链接</el-button>
+                        <el-button size="small" @click="openInNewTab">新标签打开</el-button>
+                        <el-button size="small" @click="textPreviewDialogVisible = false">关闭</el-button>
+                    </div>
+                </div>
+            </template>
+        </el-dialog>
         <el-dialog title="链接格式" v-model="showUrlDialog" :width="dialogWidth" :show-close="false" class="settings-dialog">
             <div class="dialog-section">
                 <div class="section-header">
@@ -386,6 +433,9 @@ import fetchWithAuth from '@/utils/fetchWithAuth';
 import { validateFolderPath } from '@/utils/pathValidator';
 import backgroundManager from '@/mixins/backgroundManager';
 import { ref } from 'vue';
+import hljs from '@/utils/hljs';
+import { isTextFile, getLanguageFromExt } from '@/utils/textFileDetector';
+import { darkThemes } from '@/utils/highlightTheme';
 import { useDragSelect } from '@/utils/dashboard/useDragSelect.js';
 
 export default {
@@ -394,13 +444,20 @@ mixins: [backgroundManager],
 data() {
     return {
         Number: 0,
-        directFileCount: 0, // 当前目录直接子文件数量
-        directFolderCount: 0, // 当前目录直接子文件夹数量
+        directFileCount: 0,
+        directFolderCount: 0,
         showLogoutButton: false,
         tableData: [],
         tempSearch: '',
         search: '',
-        searchKeywords: '', // Keywords only (without tag filters) for backend search
+        searchKeywords: '',
+        // 文本预览相关
+        textPreviewCache: {},
+        hoverTimers: {},
+        textPreviewDialogVisible: false,
+        textPreviewDialogData: { loading: false, error: null, content: '', highlighted: '', fileName: '', displayName: '', fileLink: '' },
+        currentCodeTheme: this.$store?.state?.codeTheme || 'tokyo-night-dark',
+        darkThemes,
         searchIncludeTags: '', // 包含的标签，逗号分隔
         searchExcludeTags: '', // 排除的标签，逗号分隔
         isSearchMode: false,
@@ -1941,6 +1998,88 @@ methods: {
             this.$message.error('复制文件夹链接失败，请重试');
         }
     },
+    // ==================== 文本预览方法 ====================
+    handleTextFileHover(item) {
+        const fileName = item.name;
+        if (this.textPreviewCache[fileName]?.highlighted) return;
+        if (this.hoverTimers[fileName]) clearTimeout(this.hoverTimers[fileName]);
+        this.hoverTimers[fileName] = setTimeout(async () => {
+            this.$set ? this.$set(this.textPreviewCache, fileName, { loading: true }) : (this.textPreviewCache[fileName] = { loading: true });
+            try {
+                const res = await fetch(this.getFileLink(fileName));
+                const text = await res.text();
+                const lines = text.split('\n').slice(0, 15);
+                const preview = lines.join('\n');
+                const lang = getLanguageFromExt(fileName);
+                let highlighted;
+                try {
+                    highlighted = hljs.highlight(preview, { language: lang }).value;
+                } catch { highlighted = this.escapeHtml(preview); }
+                this.textPreviewCache[fileName] = { loading: false, highlighted, hasMore: text.split('\n').length > 15 };
+            } catch {
+                this.textPreviewCache[fileName] = { loading: false, highlighted: '', hasMore: false, error: true };
+            }
+        }, 500);
+    },
+    handleTextFileLeave(item) {
+        if (this.hoverTimers[item.name]) {
+            clearTimeout(this.hoverTimers[item.name]);
+            delete this.hoverTimers[item.name];
+        }
+    },
+    async openTextPreview(item) {
+        const fileName = item.name;
+        const displayName = fileName.split('/').pop();
+        this.textPreviewDialogData = { loading: true, error: null, content: '', highlighted: '', fileName, displayName, fileLink: this.getFileLink(fileName) };
+        this.textPreviewDialogVisible = true;
+        try {
+            const res = await fetch(this.getFileLink(fileName));
+            const text = await res.text();
+            const lang = getLanguageFromExt(fileName);
+            let highlighted;
+            try {
+                highlighted = hljs.highlight(text, { language: lang }).value;
+            } catch { highlighted = this.escapeHtml(text); }
+            this.textPreviewDialogData = { ...this.textPreviewDialogData, loading: false, content: text, highlighted };
+        } catch (e) {
+            this.textPreviewDialogData = { ...this.textPreviewDialogData, loading: false, error: e.message };
+        }
+    },
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+    copyTextContent() {
+        navigator.clipboard.writeText(this.textPreviewDialogData.content).then(() => {
+            this.$message.success('已复制文件内容');
+        }).catch(() => this.$message.error('复制失败'));
+    },
+    copyFileLink() {
+        const link = window.location.origin + '/file/' + this.textPreviewDialogData.fileName;
+        navigator.clipboard.writeText(link).then(() => {
+            this.$message.success('已复制下载链接');
+        }).catch(() => this.$message.error('复制失败'));
+    },
+    copyPreviewLink() {
+        const link = window.location.origin + '/preview/' + this.textPreviewDialogData.fileName;
+        navigator.clipboard.writeText(link).then(() => {
+            this.$message.success('已复制预览链接');
+        }).catch(() => this.$message.error('复制失败'));
+    },
+    downloadTextFile() {
+        const a = document.createElement('a');
+        a.href = this.textPreviewDialogData.fileLink;
+        a.download = this.textPreviewDialogData.displayName;
+        a.click();
+    },
+    openInNewTab() {
+        window.open(window.location.origin + '/preview/' + this.textPreviewDialogData.fileName, '_blank');
+    },
+    handleThemeChange(theme) {
+        this.currentCodeTheme = theme;
+        this.$store.commit('setCodeTheme', theme);
+    },
 },
 mounted() {
     // 初始化背景图
@@ -1991,6 +2130,84 @@ mounted() {
 </script>
 
 <style scoped>
+/* 文本预览弹窗 */
+.text-preview-dialog :deep(.el-dialog) {
+    background: #24292e;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+.text-preview-dialog :deep(.el-dialog__header) {
+    background: #2d2d3d;
+    border-bottom: 1px solid #444;
+    color: #c9d1d9;
+}
+.text-preview-dialog :deep(.el-dialog__title) {
+    color: #c9d1d9;
+}
+.text-preview-dialog :deep(.el-dialog__body) {
+    padding: 0;
+    flex: 1;
+    overflow: hidden;
+}
+.text-preview-dialog-content {
+    max-height: 55vh;
+    overflow: auto;
+}
+.code-editor {
+    display: flex;
+    min-height: 100%;
+}
+.line-numbers {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 12px 12px 16px;
+    text-align: right;
+    user-select: none;
+    color: #6e7681;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 22.4px;
+    font-variant-numeric: tabular-nums;
+    border-right: 1px solid #444;
+    background: #1e1e2e;
+}
+.code-content {
+    flex: 1;
+    margin: 0;
+    padding: 12px 16px;
+    overflow-x: auto;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    background: transparent;
+}
+.code-content .hljs {
+    background: transparent !important;
+}
+.text-preview-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-top: 1px solid #444;
+    padding-top: 10px;
+}
+.theme-selector {
+    display: flex;
+    align-items: center;
+    color: #c9d1d9;
+}
+.action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+.text-preview-dialog :deep(.el-dialog__footer) {
+    background: #24292e;
+    border-top: none;
+}
+
 .container {
     background: var(--admin-container-bg-color);
     min-height: 100vh;

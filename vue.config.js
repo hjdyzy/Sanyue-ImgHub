@@ -26,6 +26,14 @@ module.exports = defineConfig({
           '^/api': '',
         },
       },
+      '/file': {
+        target: process.env.VUE_APP_BACKEND_URL,
+        changeOrigin: true,
+      },
+      '/upload': {
+        target: process.env.VUE_APP_BACKEND_URL,
+        changeOrigin: true,
+      },
     },
   },
   transpileDependencies: true,

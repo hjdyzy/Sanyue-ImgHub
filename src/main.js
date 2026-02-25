@@ -11,6 +11,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 import App from './App.vue'
 import router from './router'
 import store from './store'
+import { loadHighlightTheme } from './utils/highlightTheme'
 
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import 'element-plus/theme-chalk/dark/css-vars.css'
@@ -100,6 +101,8 @@ const presetSiteIcon = (isDarkMode, userConfig) => {
     document.head.appendChild(maskIconLink);
 };
 
+app.use(head).use(store).use(router).use(ElementPlus);
+
 store.dispatch('fetchUserConfig').then(() => {
     // 初始化时应用 dark 模式
     initDarkModeClass();
@@ -107,6 +110,9 @@ store.dispatch('fetchUserConfig').then(() => {
     // 预设网站标题和图标
     presetSiteTitle(store.getters.userConfig);
     presetSiteIcon(store.state.useDarkMode, store.getters.userConfig);
+
+    // 加载代码高亮主题
+    loadHighlightTheme(store.state.codeTheme);
 
     // 监听 useDarkMode 和 cusDarkMode 的变化
     store.subscribe((mutation, state) => {
@@ -123,10 +129,16 @@ store.dispatch('fetchUserConfig').then(() => {
             // 同时更新网站图标
             presetSiteIcon(store.state.useDarkMode, store.getters.userConfig);
         }
+
+        // 监听代码主题变化
+        if (mutation.type === 'setCodeTheme') {
+            loadHighlightTheme(mutation.payload);
+        }
     });
 
-    app.use(store).use(router).use(ElementPlus).mount('#app');
+    app.mount('#app');
 }).catch(error => {
     console.error('Failed to load user configuration:', error);
-    app.use(store).use(router).use(ElementPlus).use(head).mount('#app');
+    loadHighlightTheme(store.state.codeTheme);
+    app.mount('#app');
 })

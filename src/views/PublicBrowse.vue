@@ -90,13 +90,29 @@
           :key="colIndex" 
           class="waterfall-column"
         >
-          <div 
-            v-for="file in column" 
+          <div
+            v-for="file in column"
             :key="file.name"
             class="waterfall-item"
-            @click="openPreview(file)"
+            :class="{ 'text-file-item': isTextFile(file) }"
+            @click="isTextFile(file) ? openTextPreview(file) : openPreview(file)"
+            @mouseenter="handleFileHover(file)"
+            @mouseleave="handleFileLeave(file)"
           >
-            <div class="image-wrapper" :class="{ loaded: file.loaded }">
+            <div class="image-wrapper" :class="{ loaded: file.loaded, 'text-preview': isTextFile(file) }">
+              <div v-if="isTextFile(file)" class="text-file-preview">
+                <div class="text-file-header">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/></svg>
+                    <span class="text-file-name">{{ getFileName(file.name) }}</span>
+                </div>
+                <div v-if="textPreviewCache[file.name]?.loading" class="text-preview-placeholder" style="padding: 20px; text-align: center;">加载预览...</div>
+                <div v-else-if="textPreviewCache[file.name]?.highlighted" class="text-preview-code">
+                    <pre><code class="hljs" v-html="textPreviewCache[file.name].highlighted"></code></pre>
+                    <div class="text-preview-fade"></div>
+                    <div class="text-preview-more">点击查看完整内容 →</div>
+                </div>
+                <div v-else class="text-preview-placeholder">悬停预览内容</div>
+              </div>
               <img 
                 v-if="isImage(file)"
                 :src="getFileUrl(file.name)" 
@@ -309,6 +325,8 @@ import { mapGetters } from 'vuex';
 import TransformMedia from '@/components/browse/TransformMedia.vue';
 import ToggleDark from '@/components/ToggleDark.vue';
 import { hardStopAll, installGlobalMediaGuards } from '@/utils/mediaManager';
+import hljs from '@/utils/hljs';
+import { isTextFile as checkIsTextFile, getLanguageFromExt } from '@/utils/textFileDetector';
 
 export default {
   name: 'PublicBrowse',
@@ -326,6 +344,9 @@ export default {
       loading: false,
       error: null,
       canRetry: true,
+      // 文本预览
+      textPreviewCache: {},
+      hoverTimers: {},
       hasMore: true,
       previewVisible: false,
       previewIndex: 0,
@@ -805,6 +826,51 @@ export default {
     isAudio(file) {
       const ext = file.name.split('.').pop().toLowerCase();
       return ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'ape', 'opus'].includes(ext);
+    },
+
+    isTextFile(file) {
+      return checkIsTextFile(file.name);
+    },
+
+    handleFileHover(file) {
+      if (!this.isTextFile(file)) return;
+      const name = file.name;
+      if (this.textPreviewCache[name]?.highlighted) return;
+      if (this.hoverTimers[name]) clearTimeout(this.hoverTimers[name]);
+      this.hoverTimers[name] = setTimeout(() => this.fetchTextPreview(file), 500);
+    },
+
+    handleFileLeave(file) {
+      if (this.hoverTimers[file.name]) {
+        clearTimeout(this.hoverTimers[file.name]);
+        delete this.hoverTimers[file.name];
+      }
+    },
+
+    async fetchTextPreview(file) {
+      const name = file.name;
+      this.textPreviewCache[name] = { loading: true };
+      try {
+        const res = await fetch(this.getFileUrl(name));
+        const text = await res.text();
+        const lines = text.split('\n').slice(0, 10).join('\n');
+        const lang = getLanguageFromExt(name);
+        let highlighted;
+        try {
+          highlighted = hljs.highlight(lines, { language: lang }).value;
+        } catch {
+          const div = document.createElement('div');
+          div.textContent = lines;
+          highlighted = div.innerHTML;
+        }
+        this.textPreviewCache[name] = { loading: false, highlighted, hasMore: text.split('\n').length > 10 };
+      } catch {
+        this.textPreviewCache[name] = { loading: false, highlighted: '', error: true };
+      }
+    },
+
+    openTextPreview(file) {
+      window.open(window.location.origin + '/preview/' + file.name, '_blank');
     },
 
     getFileName(name) {
@@ -2224,4 +2290,27 @@ export default {
   color: rgba(0, 0, 0, 0.7);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
+
+/* 文本文件预览样式 */
+.text-file-item { cursor: pointer; }
+.text-file-item:hover { transform: translateY(-2px); }
+.image-wrapper.text-preview { min-height: 280px; background: #1a1a1a; border: 1px solid #333; }
+.text-file-preview { width: 100%; display: flex; flex-direction: column; padding: 12px; }
+.text-file-header { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid #333; margin-bottom: 8px; }
+.text-file-header svg { flex-shrink: 0; color: #8b949e; }
+.text-file-name { color: #58a6ff; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.text-preview-code { position: relative; overflow: hidden; max-height: 200px; }
+.text-preview-code pre { margin: 0; font-size: 11px; font-family: 'Consolas', 'Monaco', monospace; line-height: 1.5; overflow: hidden; }
+.text-preview-code code { color: #c9d1d9; }
+.text-preview-fade { position: absolute; bottom: 20px; left: 0; right: 0; height: 40px; background: linear-gradient(transparent, #1a1a1a); pointer-events: none; }
+.text-preview-more { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font-size: 12px; color: #58a6ff; padding: 2px 0; background: #1a1a1a; }
+.text-preview-placeholder { padding: 30px; text-align: center; color: #8b949e; font-style: italic; font-size: 13px; }
+
+/* 亮色主题 */
+:root:not(.dark) .image-wrapper.text-preview { background: #fff; border-color: #e1e4e8; }
+:root:not(.dark) .text-file-header { border-color: #e1e4e8; }
+:root:not(.dark) .text-file-name { color: #0366d6; }
+:root:not(.dark) .text-preview-code code { color: #24292e; }
+:root:not(.dark) .text-preview-fade { background: linear-gradient(transparent, #fff); }
+:root:not(.dark) .text-preview-more { background: #fff; color: #0366d6; }
 </style>

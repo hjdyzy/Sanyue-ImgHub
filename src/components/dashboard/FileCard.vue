@@ -49,13 +49,13 @@
         </div>
         
         <!-- 图片预览 -->
-        <el-image 
+        <el-image
             v-else-if="isImage"
-            :preview-teleported="true" 
-            :src="fileLink" 
-            :preview-src-list="previewSrcList" 
-            fit="cover" 
-            lazy 
+            :preview-teleported="true"
+            :src="fileLink"
+            :preview-src-list="previewSrcList"
+            fit="cover"
+            lazy
             class="image-preview"
         >
             <template #placeholder>
@@ -68,7 +68,26 @@
                 </div>
             </template>
         </el-image>
-        
+
+        <!-- 文本文件预览 -->
+        <div v-else-if="isText" class="file-preview text-file-card"
+            @click="$emit('textPreview')"
+            @mouseenter="$emit('textHover')"
+            @mouseleave="$emit('textLeave')"
+        >
+            <div v-if="textPreviewLoading" class="text-file-placeholder">
+                <font-awesome-icon icon="spinner" spin class="file-icon" style="font-size: 24px; opacity: 0.5;" />
+            </div>
+            <div v-else-if="textPreviewHighlighted" class="text-preview-content">
+                <pre><code v-html="textPreviewHighlighted"></code></pre>
+                <div v-if="textPreviewHasMore" class="text-preview-more"></div>
+            </div>
+            <div v-else class="text-file-placeholder">
+                <font-awesome-icon icon="file-code" class="file-icon" style="font-size: 32px;" />
+                <span style="font-size: 11px; opacity: 0.5; margin-top: 6px;">悬停预览</span>
+            </div>
+        </div>
+
         <!-- 其他文件 -->
         <div v-else class="file-preview">
             <font-awesome-icon icon="file" class="file-icon"/>
@@ -115,6 +134,8 @@
 </template>
 
 <script>
+import { isTextFile } from '@/utils/textFileDetector';
+
 export default {
     name: 'FileCard',
     props: {
@@ -122,9 +143,12 @@ export default {
         selected: { type: Boolean, default: false },
         fileLink: { type: String, required: true },
         previewSrcList: { type: Array, default: () => [] },
-        disableTooltip: { type: Boolean, default: false }
+        disableTooltip: { type: Boolean, default: false },
+        textPreviewLoading: { type: Boolean, default: false },
+        textPreviewHighlighted: { type: String, default: '' },
+        textPreviewHasMore: { type: Boolean, default: false },
     },
-    emits: ['update:selected', 'detail', 'copy', 'move', 'delete', 'download', 'touchstart', 'touchend', 'touchmove'],
+    emits: ['update:selected', 'detail', 'copy', 'move', 'delete', 'download', 'touchstart', 'touchend', 'touchmove', 'textPreview', 'textHover', 'textLeave'],
     data() {
         return {
             localSelected: this.selected,
@@ -153,14 +177,17 @@ export default {
             return name.endsWith('.mp3') || name.endsWith('.wav') || name.endsWith('.ogg') || name.endsWith('.flac');
         },
         isImage() {
-            // 先通过 content-type 判断
             const fileType = this.item.metadata?.FileType?.toLowerCase() || '';
             if (fileType.includes('image')) return true;
-            // 再通过文件后缀判断
             const name = this.item.name?.toLowerCase() || '';
-            return name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') || 
-                   name.endsWith('.gif') || name.endsWith('.webp') || name.endsWith('.svg') || 
+            return name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') ||
+                   name.endsWith('.gif') || name.endsWith('.webp') || name.endsWith('.svg') ||
                    name.endsWith('.bmp') || name.endsWith('.avif') || name.endsWith('.heic') || name.endsWith('.heif');
+        },
+        isText() {
+            const fileType = this.item.metadata?.FileType?.toLowerCase() || '';
+            if (fileType.startsWith('text/')) return true;
+            return isTextFile(this.item.name);
         },
         displayName() {
             const fileName = this.item.metadata?.FileName || this.item.name || '';
@@ -459,5 +486,43 @@ export default {
 .error-text {
     font-size: 12px;
     color: var(--el-text-color-secondary);
+}
+.text-file-card {
+    background: #1e1e2e;
+    cursor: pointer;
+    padding: 8px;
+}
+.text-preview-content {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+.text-preview-content pre {
+    margin: 0;
+    font-size: 10px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    line-height: 1.4;
+}
+.text-preview-content code {
+    color: #c9d1d9;
+    white-space: pre;
+}
+.text-preview-more {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(transparent, #1e1e2e);
+}
+.text-file-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    color: #c9d1d9;
 }
 </style>
