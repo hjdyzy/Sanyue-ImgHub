@@ -135,7 +135,7 @@
                 <svg class="audio-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
                 <span class="audio-name">{{ getFileName(file.name) }}</span>
               </div>
-              <div v-else class="file-placeholder">
+              <div v-else-if="!isTextFile(file)" class="file-placeholder">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/></svg>
                 <span class="file-name">{{ getFileName(file.name) }}</span>
               </div>
@@ -2294,14 +2294,15 @@ export default {
 /* 文本文件预览样式 */
 .text-file-item { cursor: pointer; }
 .text-file-item:hover { transform: translateY(-2px); }
-.image-wrapper.text-preview { min-height: 280px; background: #1a1a1a; border: 1px solid #333; }
-.text-file-preview { width: 100%; display: flex; flex-direction: column; padding: 12px; }
-.text-file-header { display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid #333; margin-bottom: 8px; }
+.image-wrapper.text-preview { min-height: 200px; background: #1a1a1a; border: 1px solid #333; }
+.text-file-preview { width: 100%; display: flex; flex-direction: column; padding: 8px; }
+.text-file-header { display: flex; align-items: center; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid #333; margin-bottom: 6px; }
 .text-file-header svg { flex-shrink: 0; color: #8b949e; }
-.text-file-name { color: #58a6ff; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.text-preview-code { position: relative; overflow: hidden; max-height: 200px; }
-.text-preview-code pre { margin: 0; font-size: 11px; font-family: 'Consolas', 'Monaco', monospace; line-height: 1.5; overflow: hidden; }
-.text-preview-code code { color: #c9d1d9; }
+.text-file-name { color: #58a6ff; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.text-preview-code { position: relative; overflow: hidden; max-height: 160px; }
+.text-preview-code pre { margin: 0; font-size: 11px; font-family: 'Consolas', 'Monaco', monospace; line-height: 1.5; overflow: hidden; text-align: left; }
+.text-preview-code code { color: #c9d1d9; text-align: left; display: block; white-space: pre; }
+.text-preview-code .hljs { background: transparent !important; padding: 0 !important; text-align: left; white-space: pre; display: block; }
 .text-preview-fade { position: absolute; bottom: 20px; left: 0; right: 0; height: 40px; background: linear-gradient(transparent, #1a1a1a); pointer-events: none; }
 .text-preview-more { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font-size: 12px; color: #58a6ff; padding: 2px 0; background: #1a1a1a; }
 .text-preview-placeholder { padding: 30px; text-align: center; color: #8b949e; font-style: italic; font-size: 13px; }

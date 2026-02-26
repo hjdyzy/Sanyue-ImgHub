@@ -271,6 +271,7 @@ export default {
     text-align: left;
     white-space: pre;
     display: block;
+    padding: 0 !important;
 }
 .preview-footer {
     position: sticky;

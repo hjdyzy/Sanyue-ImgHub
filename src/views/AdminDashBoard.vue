@@ -2193,6 +2193,7 @@ mounted() {
     text-align: left;
     white-space: pre;
     display: block;
+    padding: 0 !important;
 }
 .text-preview-footer {
     display: flex;
