@@ -87,6 +87,23 @@
                             <div class="table-cell-content">{{ formatDate(scope.row.createdAt) }}</div>
                         </template>
                     </el-table-column>
+                    <el-table-column label="状态" header-align="center" width="90">
+                        <template #default="scope">
+                            <div class="table-cell-content">
+                                <el-tag
+                                    :type="getTokenStatus(scope.row.expiresAt).status === 'active' ? 'success' : 'danger'"
+                                    size="small"
+                                >
+                                    {{ getTokenStatus(scope.row.expiresAt).label }}
+                                </el-tag>
+                            </div>
+                        </template>
+                    </el-table-column>
+                    <el-table-column label="过期时间" header-align="center">
+                        <template #default="scope">
+                            <div class="table-cell-content">{{ getTokenStatus(scope.row.expiresAt).expiresText }}</div>
+                        </template>
+                    </el-table-column>
                     <el-table-column label="操作" fixed="right" header-align="center">
                         <template #default="scope">
                             <div class="table-cell-content action-buttons">
@@ -169,7 +186,22 @@
                         <el-checkbox label="upload">上传</el-checkbox>
                         <el-checkbox label="delete">删除</el-checkbox>
                         <el-checkbox label="list">列出</el-checkbox>
+                        <el-checkbox label="manage">管理</el-checkbox>
                     </el-checkbox-group>
+                </el-form-item>
+                <el-form-item label="永不过期">
+                    <el-switch v-model="newToken.neverExpire" @change="onCreateNeverExpireChange"/>
+                </el-form-item>
+                <el-form-item v-if="!newToken.neverExpire" label="有效期" prop="expirationValue">
+                    <div style="display: flex; gap: 10px; width: 100%;">
+                        <el-input-number v-model="newToken.expirationValue" :min="1" :step="1" controls-position="right" style="flex: 1;"/>
+                        <el-select v-model="newToken.expirationUnit" style="width: 100px;">
+                            <el-option v-for="opt in timeUnitOptions" :key="opt.value" :label="opt.label" :value="opt.value"/>
+                        </el-select>
+                    </div>
+                </el-form-item>
+                <el-form-item v-if="!newToken.neverExpire" label="过期自动删除">
+                    <el-switch v-model="newToken.autoDelete"/>
                 </el-form-item>
             </el-form>
             <template #footer>
@@ -182,7 +214,7 @@
 
         <!-- 编辑Token对话框 -->
         <el-dialog v-model="showEditTokenDialog" title="编辑 API Token" :width="dialogWidth">
-            <el-form :model="editingToken" :rules="tokenRules" ref="editTokenForm" label-width="100px">
+            <el-form :model="editingToken" :rules="editTokenRules" ref="editTokenForm" label-width="100px">
                 <el-form-item label="Token 名称">
                     <el-input v-model="editingToken.name" disabled/>
                 </el-form-item>
@@ -191,7 +223,22 @@
                         <el-checkbox label="upload">上传</el-checkbox>
                         <el-checkbox label="delete">删除</el-checkbox>
                         <el-checkbox label="list">列出</el-checkbox>
+                        <el-checkbox label="manage">管理</el-checkbox>
                     </el-checkbox-group>
+                </el-form-item>
+                <el-form-item label="永不过期">
+                    <el-switch v-model="editingToken.neverExpire" @change="onEditNeverExpireChange"/>
+                </el-form-item>
+                <el-form-item v-if="!editingToken.neverExpire" label="有效期" prop="expirationValue">
+                    <div style="display: flex; gap: 10px; width: 100%;">
+                        <el-input-number v-model="editingToken.expirationValue" :min="1" :step="1" controls-position="right" style="flex: 1;"/>
+                        <el-select v-model="editingToken.expirationUnit" style="width: 100px;">
+                            <el-option v-for="opt in timeUnitOptions" :key="opt.value" :label="opt.label" :value="opt.value"/>
+                        </el-select>
+                    </div>
+                </el-form-item>
+                <el-form-item v-if="!editingToken.neverExpire" label="过期自动删除">
+                    <el-switch v-model="editingToken.autoDelete"/>
                 </el-form-item>
             </el-form>
             <template #footer>
@@ -234,6 +281,7 @@
 <script>
 import fetchWithAuth from '@/utils/fetchWithAuth';
 import FloatingSaveButton from '@/components/FloatingSaveButton.vue';
+import { computeExpiresAt, getTokenStatus } from '@/utils/tokenExpiration';
 
 export default {
 components: {
@@ -266,16 +314,32 @@ data() {
         showEditTokenDialog: false,
         showTokenResultDialog: false,
         
+        timeUnitOptions: [
+            { label: '秒', value: 's' },
+            { label: '分钟', value: 'm' },
+            { label: '小时', value: 'h' },
+            { label: '天', value: 'd' },
+            { label: '月', value: 'M' },
+            { label: '年', value: 'Y' }
+        ],
         newToken: {
             name: '',
             owner: '',
-            permissions: []
+            permissions: [],
+            neverExpire: true,
+            expirationValue: 1,
+            expirationUnit: 'd',
+            autoDelete: false
         },
         editingToken: {
             id: '',
             name: '',
             owner: '',
-            permissions: []
+            permissions: [],
+            neverExpire: true,
+            expirationValue: 1,
+            expirationUnit: 'd',
+            autoDelete: false
         },
         createdToken: {
             name: '',
@@ -327,6 +391,29 @@ data() {
             ],
             permissions: [
                 { required: true, message: '请选择权限', trigger: 'change' }
+            ],
+            expirationValue: [
+                { validator: (rule, value, callback) => {
+                    if (!this.newToken.neverExpire && (!value || value <= 0)) {
+                        callback(new Error('有效期数值必须大于 0'));
+                    } else {
+                        callback();
+                    }
+                }, trigger: 'blur' }
+            ]
+        },
+        editTokenRules: {
+            permissions: [
+                { required: true, message: '请选择权限', trigger: 'change' }
+            ],
+            expirationValue: [
+                { validator: (rule, value, callback) => {
+                    if (!this.editingToken.neverExpire && (!value || value <= 0)) {
+                        callback(new Error('有效期数值必须大于 0'));
+                    } else {
+                        callback();
+                    }
+                }, trigger: 'blur' }
             ]
         }
     };
@@ -357,7 +444,8 @@ methods: {
         const permissionMap = {
             'upload': '上传',
             'delete': '删除', 
-            'list': '列出'
+            'list': '列出',
+            'manage': '管理'
         };
         return permissionMap[permission] || permission;
     },
@@ -385,12 +473,26 @@ methods: {
             
             try {
                 this.newToken.owner = 'admin'; // 默认所有Token归属管理员
+                
+                let expiresAt = null;
+                let autoDelete = false;
+                if (!this.newToken.neverExpire) {
+                    expiresAt = computeExpiresAt(new Date(), this.newToken.expirationValue, this.newToken.expirationUnit);
+                    autoDelete = this.newToken.autoDelete;
+                }
+                
                 const response = await fetchWithAuth('/api/manage/apiTokens', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(this.newToken)
+                    body: JSON.stringify({
+                        name: this.newToken.name,
+                        owner: this.newToken.owner,
+                        permissions: this.newToken.permissions,
+                        expiresAt,
+                        autoDelete
+                    })
                 });
                 
                 const data = await response.json();
@@ -402,7 +504,7 @@ methods: {
                     };
                     this.showCreateTokenDialog = false;
                     this.showTokenResultDialog = true;
-                    this.newToken = { name: '', owner: '', permissions: [] };
+                    this.newToken = { name: '', owner: '', permissions: [], neverExpire: true, expirationValue: 1, expirationUnit: 'd', autoDelete: false };
                     await this.loadApiTokens();
                     this.$message.success('Token创建成功');
                 } else {
@@ -415,11 +517,16 @@ methods: {
     },
     
     editToken(token) {
+        const hasExpiration = token.expiresAt !== null && token.expiresAt !== undefined;
         this.editingToken = {
             id: token.id,
             name: token.name,
             owner: token.owner,
-            permissions: [...token.permissions]
+            permissions: [...token.permissions],
+            neverExpire: !hasExpiration,
+            expirationValue: 1,
+            expirationUnit: 'd',
+            autoDelete: token.autoDelete || false
         };
         this.showEditTokenDialog = true;
     },
@@ -429,6 +536,13 @@ methods: {
             if (!valid) return;
             
             try {
+                let expiresAt = null;
+                let autoDelete = false;
+                if (!this.editingToken.neverExpire) {
+                    expiresAt = computeExpiresAt(new Date(), this.editingToken.expirationValue, this.editingToken.expirationUnit);
+                    autoDelete = this.editingToken.autoDelete;
+                }
+                
                 const response = await fetchWithAuth('/api/manage/apiTokens', {
                     method: 'PUT',
                     headers: {
@@ -436,7 +550,9 @@ methods: {
                     },
                     body: JSON.stringify({
                         tokenId: this.editingToken.id,
-                        permissions: this.editingToken.permissions
+                        permissions: this.editingToken.permissions,
+                        expiresAt,
+                        autoDelete
                     })
                 });
                 
@@ -445,7 +561,7 @@ methods: {
                 if (response.ok) {
                     this.showEditTokenDialog = false;
                     await this.loadApiTokens();
-                    this.$message.success('Token权限更新成功');
+                    this.$message.success('Token更新成功');
                 } else {
                     this.$message.error(data.error || 'Token更新失败');
                 }
@@ -489,6 +605,22 @@ methods: {
         } catch (error) {
             this.$message.error('复制失败，请手动复制');
         }
+    },
+    
+    onCreateNeverExpireChange(val) {
+        if (val) {
+            this.newToken.autoDelete = false;
+        }
+    },
+    
+    onEditNeverExpireChange(val) {
+        if (val) {
+            this.editingToken.autoDelete = false;
+        }
+    },
+    
+    getTokenStatus(expiresAt) {
+        return getTokenStatus(expiresAt);
     },
     
     saveSettings() {
@@ -657,6 +789,14 @@ mounted() {
     --el-switch-on-color: var(--el-color-primary);
 }
 
+.form-item-hint {
+    display: block;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    line-height: 1.5;
+}
+
 .token-title {
     display: flex;
     align-items: center;
@@ -724,6 +864,7 @@ mounted() {
     gap: 4px;
     padding: 8px 4px;
     min-height: 40px;
+    text-align: center;
 }
 
 .action-buttons {
