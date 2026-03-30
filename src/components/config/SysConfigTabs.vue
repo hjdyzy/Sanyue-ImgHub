@@ -9,7 +9,7 @@
             @click="handleSelect(item.index)"
         >
             <font-awesome-icon :icon="item.icon" class="menu-icon" />
-            <span class="menu-text">{{ item.title }}</span>
+            <span class="menu-text">{{ $t(item.titleKey) }}</span>
         </div>
     </div>
 
@@ -35,11 +35,11 @@ props: {
 data() {
     return {
         menuItems: [
-            { index: 'status', icon: 'chart-bar', title: '系统状态' },
-            { index: 'upload', icon: 'cloud-upload', title: '上传设置' },
-            { index: 'security', icon: 'shield', title: '安全设置' },
-            { index: 'page', icon: 'pager', title: '网页设置' },
-            { index: 'others', icon: 'cog', title: '其他设置' }
+            { index: 'status', icon: 'chart-bar', titleKey: 'sysConfigTabs.systemStatus' },
+            { index: 'upload', icon: 'cloud-upload', titleKey: 'sysConfigTabs.uploadSettings' },
+            { index: 'security', icon: 'shield', titleKey: 'sysConfigTabs.securitySettings' },
+            { index: 'page', icon: 'pager', titleKey: 'sysConfigTabs.pageSettings' },
+            { index: 'others', icon: 'cog', titleKey: 'sysConfigTabs.otherSettings' }
         ]
     };
 },
@@ -74,7 +74,9 @@ beforeDestroy() {
     left: 8px;
     transform: translateY(-50%);
     z-index: 2001;
-    width: 140px;
+    width: fit-content;
+    min-width: 56px;
+    max-width: 200px;
     /* macOS 风格毛玻璃效果 */
     background: rgba(255, 255, 255, 0.72);
     backdrop-filter: blur(20px) saturate(180%);
@@ -167,7 +169,6 @@ html.dark .menu-item.is-active {
     white-space: nowrap;
     overflow: hidden;
     opacity: 1;
-    max-width: 100px;
     transition: opacity 0.2s ease 0.05s, max-width 0.25s ease;
 }
 
@@ -202,7 +203,8 @@ html.dark .toggle-button:hover {
 @media (max-width: 768px) {
     .sidebar-container {
         left: 4px;
-        width: 120px;
+        width: fit-content;
+        max-width: 170px;
     }
     
     .sidebar-container.is-collapsed {

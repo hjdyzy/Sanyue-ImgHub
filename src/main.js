@@ -12,6 +12,7 @@ import App from './App.vue'
 import router from './router'
 import store from './store'
 import { loadHighlightTheme } from './utils/highlightTheme'
+import i18n from './locales'
 
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import 'element-plus/theme-chalk/dark/css-vars.css'
@@ -101,7 +102,7 @@ const presetSiteIcon = (isDarkMode, userConfig) => {
     document.head.appendChild(maskIconLink);
 };
 
-app.use(head).use(store).use(router).use(ElementPlus);
+app.use(head).use(store).use(router).use(ElementPlus).use(i18n);
 
 store.dispatch('fetchUserConfig').then(() => {
     // 初始化时应用 dark 模式
