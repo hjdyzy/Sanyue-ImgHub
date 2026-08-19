@@ -18,6 +18,10 @@ module.exports = defineConfig({
   },
   devServer: {
     port: 3000,
+    allowedHosts: 'all',
+    historyApiFallback: {
+      disableDotRule: true,
+    },
     proxy: {
       '/api': {
         target: process.env.VUE_APP_BACKEND_URL,
@@ -25,6 +29,14 @@ module.exports = defineConfig({
         pathRewrite: {
           '^/api': '',
         },
+      },
+      '/file': {
+        target: process.env.VUE_APP_BACKEND_URL,
+        changeOrigin: true,
+      },
+      '/upload': {
+        target: process.env.VUE_APP_BACKEND_URL,
+        changeOrigin: true,
       },
     },
   },

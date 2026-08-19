@@ -94,11 +94,27 @@
             v-for="file in column" 
             :key="file.name"
             class="waterfall-item"
-            @click="openPreview(file)"
+            :class="{ 'text-file-item': isTextFile(file) }"
+            @click="isTextFile(file) ? openTextPreview(file) : openPreview(file)"
+            @mouseenter="handleFileHover(file)"
+            @mouseleave="handleFileLeave(file)"
           >
-            <div class="image-wrapper" :class="{ loaded: file.loaded }">
+            <div class="image-wrapper" :class="{ loaded: file.loaded, 'text-preview': isTextFile(file) }">
+              <div v-if="isTextFile(file)" class="text-file-preview">
+                <div class="text-file-header">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/></svg>
+                  <span class="text-file-name">{{ getFileName(file.name) }}</span>
+                </div>
+                <div v-if="textPreviewCache[file.name]?.loading" class="text-preview-placeholder">加载预览...</div>
+                <div v-else-if="textPreviewCache[file.name]?.highlighted" class="text-preview-code">
+                  <pre><code class="hljs" v-html="textPreviewCache[file.name].highlighted"></code></pre>
+                  <div class="text-preview-fade"></div>
+                  <div class="text-preview-more">点击查看完整内容</div>
+                </div>
+                <div v-else class="text-preview-placeholder">悬停预览内容</div>
+              </div>
               <img 
-                v-if="isImage(file)"
+                v-else-if="isImage(file)"
                 :src="getFileUrl(file.name)" 
                 :alt="file.name"
                 loading="lazy"
@@ -309,6 +325,10 @@ import { mapGetters } from 'vuex';
 import TransformMedia from '@/components/browse/TransformMedia.vue';
 import ToggleDark from '@/components/ToggleDark.vue';
 import { hardStopAll, installGlobalMediaGuards } from '@/utils/mediaManager';
+import hljs from '@/utils/hljs';
+import { isTextFile as checkIsTextFile, getLanguageFromExt } from '@/utils/textFileDetector';
+
+const TEXT_PREVIEW_LINE_LIMIT = 10;
 
 export default {
   name: 'PublicBrowse',
@@ -327,6 +347,8 @@ export default {
       error: null,
       canRetry: true,
       hasMore: true,
+      textPreviewCache: {},
+      hoverTimers: {},
       previewVisible: false,
       previewIndex: 0,
       observer: null,
@@ -467,6 +489,7 @@ export default {
     window.removeEventListener('resize', this.checkMobile);
     window.removeEventListener('scroll', this.handleScroll);
     document.removeEventListener('pointerdown', this.handleSearchOutside);
+    Object.values(this.hoverTimers).forEach(timer => clearTimeout(timer));
   },
   methods: {
     // 搜索处理
@@ -815,6 +838,66 @@ export default {
     isAudio(file) {
       const ext = file.name.split('.').pop().toLowerCase();
       return ['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'wma', 'ape', 'opus'].includes(ext);
+    },
+
+    isTextFile(file) {
+      const fileType = file.metadata?.FileType?.toLowerCase().split(';')[0].trim() || '';
+      return fileType.startsWith('text/') || checkIsTextFile(file.name);
+    },
+
+    handleFileHover(file) {
+      if (!this.isTextFile(file)) return;
+      const name = file.name;
+      if (this.textPreviewCache[name]?.highlighted) return;
+      if (this.hoverTimers[name]) clearTimeout(this.hoverTimers[name]);
+      this.hoverTimers[name] = setTimeout(() => this.fetchTextPreview(file), 500);
+    },
+
+    handleFileLeave(file) {
+      if (this.hoverTimers[file.name]) {
+        clearTimeout(this.hoverTimers[file.name]);
+        delete this.hoverTimers[file.name];
+      }
+    },
+
+    async fetchTextPreview(file) {
+      const name = file.name;
+      this.textPreviewCache[name] = { loading: true };
+      try {
+        const response = await fetch(this.getFileUrl(name), { credentials: 'include' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const text = await response.text();
+        const preview = text.split('\n').slice(0, TEXT_PREVIEW_LINE_LIMIT).join('\n');
+        let highlighted;
+        try {
+          highlighted = hljs.highlight(preview, { language: getLanguageFromExt(name) }).value;
+        } catch {
+          highlighted = this.escapeHtml(preview);
+        }
+        this.textPreviewCache[name] = {
+          loading: false,
+          highlighted,
+          hasMore: text.split('\n').length > TEXT_PREVIEW_LINE_LIMIT
+        };
+      } catch (error) {
+        this.textPreviewCache[name] = { loading: false, highlighted: '', error: true };
+        console.error('Failed to load public text preview:', error);
+      }
+    },
+
+    openTextPreview(file) {
+      window.open(this.getPreviewUrl(file.name), '_blank', 'noopener');
+    },
+
+    getPreviewUrl(name) {
+      const encodedPath = name.split('/').map(part => encodeURIComponent(part)).join('/');
+      return `${window.location.origin}/preview/${encodedPath}`;
+    },
+
+    escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
     },
 
     getFileName(name) {
@@ -2201,4 +2284,92 @@ html.dark .search-box:hover {
   color: var(--el-text-color-primary);
   box-shadow: none;
 }
+
+.text-file-item { cursor: pointer; }
+.text-file-item:hover { transform: translateY(-2px); }
+.image-wrapper.text-preview {
+  min-height: 200px;
+  background: #1a1a1a;
+  border-color: #333;
+}
+.image-wrapper.text-preview::before { display: none; }
+.text-file-preview {
+  width: 100%;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  box-sizing: border-box;
+}
+.text-file-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #333;
+  margin-bottom: 6px;
+}
+.text-file-header svg { flex-shrink: 0; color: #8b949e; }
+.text-file-name {
+  color: #58a6ff;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.text-preview-code {
+  position: relative;
+  overflow: hidden;
+  max-height: 160px;
+}
+.text-preview-code pre {
+  margin: 0;
+  font-size: 11px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  line-height: 1.5;
+  overflow: hidden;
+  text-align: left;
+}
+.text-preview-code code,
+.text-preview-code .hljs {
+  color: #c9d1d9;
+  text-align: left;
+  display: block;
+  white-space: pre;
+  background: transparent !important;
+  padding: 0 !important;
+}
+.text-preview-fade {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(transparent, #1a1a1a);
+  pointer-events: none;
+}
+.text-preview-more {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12px;
+  color: #58a6ff;
+  padding: 2px 0;
+  background: #1a1a1a;
+}
+.text-preview-placeholder {
+  padding: 30px;
+  text-align: center;
+  color: #8b949e;
+  font-style: italic;
+  font-size: 13px;
+}
+:root:not(.dark) .image-wrapper.text-preview { background: #fff; border-color: #e1e4e8; }
+:root:not(.dark) .text-file-header { border-color: #e1e4e8; }
+:root:not(.dark) .text-file-name { color: #0366d6; }
+:root:not(.dark) .text-preview-code code { color: #24292e; }
+:root:not(.dark) .text-preview-fade { background: linear-gradient(transparent, #fff); }
+:root:not(.dark) .text-preview-more { background: #fff; color: #0366d6; }
 </style>

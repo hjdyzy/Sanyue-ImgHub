@@ -12,6 +12,7 @@ import App from './App.vue'
 import router from './router'
 import store from './store'
 import i18n from './locales'
+import { loadHighlightTheme } from './utils/highlightTheme'
 
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import 'element-plus/theme-chalk/dark/css-vars.css'
@@ -25,6 +26,7 @@ library.add(...fontAwesomeIcons);
 
 const app = createApp(App);
 const head = createHead(); // 创建 head 对象
+loadHighlightTheme(store.state.codeTheme);
 
 app.component('font-awesome-icon', FontAwesomeIcon);
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
@@ -124,9 +126,13 @@ store.dispatch('fetchUserConfig').then(() => {
             // 同时更新网站图标
             presetSiteIcon(store.state.useDarkMode, store.getters.userConfig);
         }
+
+        if (mutation.type === 'setCodeTheme') {
+            loadHighlightTheme(mutation.payload);
+        }
     });
 
-    app.use(store).use(router).use(ElementPlus).use(i18n).mount('#app');
+    app.use(head).use(store).use(router).use(ElementPlus).use(i18n).mount('#app');
 }).catch(error => {
     console.error('Failed to load user configuration:', error);
     app.use(store).use(router).use(ElementPlus).use(i18n).use(head).mount('#app');

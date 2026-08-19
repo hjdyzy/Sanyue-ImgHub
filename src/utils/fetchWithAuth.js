@@ -4,7 +4,7 @@ import router from '@/router'
 let isRedirecting = false;
 
 export default async function fetchWithAuth(url, options = {}) {
-    // 开发环境下添加 /api 前缀
+    // Add the development proxy prefix; the proxy removes only this outer prefix.
     url = process.env.NODE_ENV === 'production' ? url : `/api${url}`;
 
     // 确保包含凭据（HttpOnly Cookie 会自动携带）

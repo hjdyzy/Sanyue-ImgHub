@@ -35,6 +35,8 @@ export default createStore({
     // 深色模式
     useDarkMode: null,
     cusDarkMode: false,
+    // 代码高亮主题
+    codeTheme: 'tokyo-night-dark',
   },
   getters: {
     userConfig: state => state.userConfig,
@@ -55,6 +57,7 @@ export default createStore({
     },
     useDarkMode: state => state.useDarkMode,
     cusDarkMode: state => state.cusDarkMode,
+    codeTheme: state => state.codeTheme,
     storeAutoReUpload: state => state.autoReUpload,
   },
   mutations: {
@@ -102,6 +105,9 @@ export default createStore({
     },
     setCusDarkMode(state, cusDarkMode) {
       state.cusDarkMode = cusDarkMode;
+    },
+    setCodeTheme(state, theme) {
+      state.codeTheme = theme;
     },
     setStoreUploadFolder(state, folder) {
       state.uploadFolder = folder
@@ -165,6 +171,7 @@ export default createStore({
       'autoReUpload',
       'useDarkMode',
       'cusDarkMode',
+      'codeTheme',
     ]
   })]
 })

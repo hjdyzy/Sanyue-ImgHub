@@ -154,11 +154,17 @@
                         :fileLink="getFileLink(item.name)"
                         :previewSrcList="item.previewSrcList"
                         :disableTooltip="disableTooltip"
+                        :textPreviewLoading="textPreviewCache[item.name]?.loading"
+                        :textPreviewHighlighted="textPreviewCache[item.name]?.highlighted"
+                        :textPreviewHasMore="textPreviewCache[item.name]?.hasMore"
                         @detail="openDetailDialog(index, item.name)"
                         @copy="handleCopy(index, item.name)"
                         @move="handleMove(index, item.name)"
                         @delete="handleDelete(index, item.name)"
                         @download="handleDownload(item.name)"
+                        @textPreview="openTextPreview(item)"
+                        @textHover="handleTextFileHover(item)"
+                        @textLeave="handleTextFileLeave(item)"
                         @touchstart="handleTouchStart(item, index)"
                         @touchend="handleTouchEnd"
                         @touchmove="handleTouchEnd"
@@ -298,6 +304,45 @@
             @metadataUpdated="handleMetadataUpdated"
             @fileRenamed="handleFileRenamed"
         />
+        <el-dialog
+            :title="textPreviewDialogData.displayName"
+            v-model="textPreviewDialogVisible"
+            width="80%"
+            :close-on-click-modal="true"
+            class="text-preview-dialog"
+        >
+            <div class="text-preview-dialog-content">
+                <div v-if="textPreviewDialogData.loading" class="text-preview-loading">
+                    <font-awesome-icon icon="spinner" spin />
+                </div>
+                <div v-else-if="textPreviewDialogData.error" class="text-preview-error">
+                    {{ textPreviewDialogData.error }}
+                </div>
+                <div v-else class="code-editor">
+                    <div class="line-numbers" aria-hidden="true">
+                        <span v-for="lineNumber in textPreviewDialogData.content.split('\n').length" :key="lineNumber">{{ lineNumber }}</span>
+                    </div>
+                    <pre class="code-content"><code v-html="textPreviewDialogData.highlighted" class="hljs"></code></pre>
+                </div>
+            </div>
+            <template #footer>
+                <div class="text-preview-footer">
+                    <div class="theme-selector">
+                        <span class="theme-label">主题:</span>
+                        <el-select v-model="currentCodeTheme" size="small" style="width: 160px;" @change="handleThemeChange">
+                            <el-option v-for="theme in darkThemes" :key="theme.value" :label="theme.label" :value="theme.value" />
+                        </el-select>
+                    </div>
+                    <div class="action-buttons">
+                        <el-button @click="copyTextContent"><font-awesome-icon icon="copy" />复制内容</el-button>
+                        <el-button @click="copyFileLink"><font-awesome-icon icon="link" />复制下载链接</el-button>
+                        <el-button @click="copyPreviewLink"><font-awesome-icon icon="eye" />复制预览链接</el-button>
+                        <el-button @click="openInNewTab"><font-awesome-icon icon="external-link-alt" />新标签打开</el-button>
+                        <el-button @click="downloadTextFile"><font-awesome-icon icon="download" />下载</el-button>
+                    </div>
+                </div>
+            </template>
+        </el-dialog>
         <el-dialog :title="$t('dashboard.linkFormat')" v-model="showUrlDialog" :width="dialogWidth" :show-close="false" class="settings-dialog settings-dialog-scope">
             <div class="dialog-section">
                 <div class="section-header">
@@ -419,6 +464,11 @@ import { validateFolderPath } from '@/utils/pathValidator';
 import backgroundManager from '@/mixins/backgroundManager';
 import { ref } from 'vue';
 import { useDragSelect } from '@/utils/dashboard/useDragSelect.js';
+import hljs from '@/utils/hljs';
+import { getLanguageFromExt } from '@/utils/textFileDetector';
+import { darkThemes } from '@/utils/highlightTheme';
+
+const TEXT_PREVIEW_LINE_LIMIT = 15;
 
 export default {
 name: 'AdminDashBoard',
@@ -432,6 +482,20 @@ data() {
         tableData: [],
         tempSearch: '',
         search: '',
+        textPreviewCache: {},
+        hoverTimers: {},
+        textPreviewDialogVisible: false,
+        textPreviewDialogData: {
+            loading: false,
+            error: null,
+            content: '',
+            highlighted: '',
+            fileName: '',
+            displayName: '',
+            fileLink: ''
+        },
+        currentCodeTheme: this.$store?.state?.codeTheme || 'tokyo-night-dark',
+        darkThemes,
         searchKeywords: '', // Keywords only (without tag filters) for backend search
         searchIncludeTags: '', // 包含的标签，逗号分隔
         searchExcludeTags: '', // 排除的标签，逗号分隔
@@ -710,7 +774,7 @@ watch: {
         this.tableData.forEach(file => file.selected = false);
     }
 },
-methods: {
+    methods: {
     // 切换视图模式
     setViewMode(mode) {
         if (this.viewMode === mode) {
@@ -1547,6 +1611,114 @@ methods: {
                 link.click();
             });
     },
+    handleTextFileHover(item) {
+        const fileName = item.name;
+        if (this.textPreviewCache[fileName]?.highlighted) return;
+        if (this.hoverTimers[fileName]) clearTimeout(this.hoverTimers[fileName]);
+        this.hoverTimers[fileName] = setTimeout(() => this.loadTextPreview(item), 500);
+    },
+    handleTextFileLeave(item) {
+        if (this.hoverTimers[item.name]) {
+            clearTimeout(this.hoverTimers[item.name]);
+            delete this.hoverTimers[item.name];
+        }
+    },
+    async loadTextPreview(item) {
+        const fileName = item.name;
+        this.textPreviewCache[fileName] = { loading: true };
+        try {
+            const text = await this.fetchTextContent(fileName);
+            const preview = text.split('\n').slice(0, TEXT_PREVIEW_LINE_LIMIT).join('\n');
+            this.textPreviewCache[fileName] = {
+                loading: false,
+                highlighted: this.highlightText(preview, fileName),
+                hasMore: text.split('\n').length > TEXT_PREVIEW_LINE_LIMIT
+            };
+        } catch (error) {
+            this.textPreviewCache[fileName] = { loading: false, highlighted: '', hasMore: false, error: true };
+            console.error('Failed to load text preview:', error);
+        }
+    },
+    async fetchTextContent(fileName) {
+        const response = await fetch(this.getFileLink(fileName), { credentials: 'include' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.text();
+    },
+    highlightText(text, fileName) {
+        const language = getLanguageFromExt(fileName);
+        try {
+            return hljs.highlight(text, { language }).value;
+        } catch {
+            return this.escapeHtml(text);
+        }
+    },
+    async openTextPreview(item) {
+        const fileName = item.name;
+        const displayName = fileName.split('/').pop();
+        this.textPreviewDialogData = {
+            loading: true,
+            error: null,
+            content: '',
+            highlighted: '',
+            fileName,
+            displayName,
+            fileLink: this.getFileLink(fileName)
+        };
+        this.textPreviewDialogVisible = true;
+        try {
+            const text = await this.fetchTextContent(fileName);
+            this.textPreviewDialogData = {
+                ...this.textPreviewDialogData,
+                loading: false,
+                content: text,
+                highlighted: this.highlightText(text, fileName)
+            };
+        } catch (error) {
+            this.textPreviewDialogData = {
+                ...this.textPreviewDialogData,
+                loading: false,
+                error: error.message
+            };
+        }
+    },
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+    copyTextContent() {
+        navigator.clipboard.writeText(this.textPreviewDialogData.content)
+            .then(() => this.$message.success('已复制文件内容'))
+            .catch(() => this.$message.error('复制失败'));
+    },
+    copyFileLink() {
+        const link = `${window.location.origin}${this.getFileLink(this.textPreviewDialogData.fileName)}`;
+        navigator.clipboard.writeText(link)
+            .then(() => this.$message.success('已复制下载链接'))
+            .catch(() => this.$message.error('复制失败'));
+    },
+    getPreviewUrl(fileName) {
+        const encodedPath = fileName.split('/').map(part => encodeURIComponent(part)).join('/');
+        return `${window.location.origin}/preview/${encodedPath}`;
+    },
+    copyPreviewLink() {
+        navigator.clipboard.writeText(this.getPreviewUrl(this.textPreviewDialogData.fileName))
+            .then(() => this.$message.success('已复制预览链接'))
+            .catch(() => this.$message.error('复制失败'));
+    },
+    downloadTextFile() {
+        const link = document.createElement('a');
+        link.href = this.textPreviewDialogData.fileLink;
+        link.download = this.textPreviewDialogData.displayName;
+        link.click();
+    },
+    openInNewTab() {
+        window.open(this.getPreviewUrl(this.textPreviewDialogData.fileName), '_blank', 'noopener');
+    },
+    handleThemeChange(theme) {
+        this.currentCodeTheme = theme;
+        this.$store.commit('setCodeTheme', theme);
+    },
     isVideo(file) {
         // 排除音频文件
         if (this.isAudio(file)) return false;
@@ -2084,6 +2256,7 @@ mounted() {
 },
 beforeUnmount() {
     window.removeEventListener('resize', this.updateResponsivePageSize);
+    Object.values(this.hoverTimers).forEach(timer => clearTimeout(timer));
 }
 
 };
@@ -2093,6 +2266,97 @@ beforeUnmount() {
 <style scoped src="@/styles/admin-common.css"></style>
 
 <style scoped>
+/* Text preview dialog */
+.text-preview-dialog :deep(.el-dialog) {
+    background: #1e1e1e;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+.text-preview-dialog :deep(.el-dialog__header) {
+    background: #252526;
+    border-bottom: 1px solid #3c3c3c;
+    color: #d4d4d4;
+}
+.text-preview-dialog :deep(.el-dialog__title) { color: #d4d4d4; }
+.text-preview-dialog :deep(.el-dialog__body) {
+    padding: 0;
+    flex: 1;
+    overflow: hidden;
+    background: #1e1e1e;
+}
+.text-preview-dialog-content { max-height: 55vh; overflow: auto; }
+.text-preview-loading,
+.text-preview-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 180px;
+    padding: 40px;
+}
+.text-preview-loading { color: #d4d4d4; font-size: 24px; }
+.text-preview-error { color: #f56c6c; }
+.code-editor { display: flex; min-height: 100%; }
+.line-numbers {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 12px 12px 16px;
+    text-align: right;
+    user-select: none;
+    color: #858585;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 22.4px;
+    font-variant-numeric: tabular-nums;
+    border-right: 1px solid #3c3c3c;
+    background: #1e1e1e;
+}
+.code-content {
+    flex: 1;
+    margin: 0;
+    padding: 12px 16px;
+    overflow-x: auto;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    background: #1e1e1e;
+}
+.code-content code,
+.code-content .hljs {
+    text-align: left;
+    white-space: pre;
+    display: block;
+    color: #d4d4d4;
+    background: transparent !important;
+    padding: 0 !important;
+}
+.text-preview-footer {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-top: 1px solid #3c3c3c;
+    padding-top: 10px;
+}
+.text-preview-footer .theme-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.text-preview-footer .theme-label {
+    color: var(--el-text-color-primary);
+    font-size: 13px;
+    white-space: nowrap;
+}
+.action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+.action-buttons :deep(.el-button) { display: inline-flex; align-items: center; gap: 6px; }
+
 .container {
     background: var(--admin-container-bg-color);
     min-height: 100vh;
