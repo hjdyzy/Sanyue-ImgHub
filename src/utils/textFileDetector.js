@@ -20,40 +20,39 @@ const SPECIAL_TEXT_FILES = [
 ];
 
 const EXT_TO_LANGUAGE = {
-    'js': 'javascript', 'jsx': 'javascript', 'mjs': 'javascript', 'cjs': 'javascript',
-    'ts': 'typescript', 'tsx': 'typescript',
-    'py': 'python', 'pyw': 'python',
-    'sh': 'bash', 'bash': 'bash', 'zsh': 'bash', 'fish': 'bash',
-    'json': 'json',
-    'xml': 'xml', 'html': 'xml', 'htm': 'xml', 'svg': 'xml',
-    'css': 'css', 'scss': 'css', 'sass': 'css', 'less': 'css',
-    'sql': 'sql',
-    'yaml': 'yaml', 'yml': 'yaml',
-    'md': 'markdown', 'markdown': 'markdown',
-    'go': 'go',
-    'java': 'java', 'kt': 'kotlin', 'kts': 'kotlin', 'scala': 'scala',
-    'php': 'php',
-    'rb': 'ruby',
-    'rs': 'rust',
-    'c': 'c', 'h': 'c',
-    'cpp': 'cpp', 'hpp': 'cpp', 'cc': 'cpp', 'cxx': 'cpp',
-    'cs': 'csharp',
-    'swift': 'swift',
-    'ini': 'ini', 'conf': 'ini', 'cfg': 'ini', 'cnf': 'ini', 'toml': 'ini',
-    'dockerfile': 'dockerfile',
-    'makefile': 'plaintext',
-    'lua': 'lua',
-    'pl': 'perl', 'pm': 'perl', 'perl': 'perl',
-    'r': 'r',
-    'vue': 'xml', 'svelte': 'xml', 'astro': 'xml',
-    'graphql': 'plaintext', 'gql': 'plaintext',
-    'env': 'shell',
+    js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',
+    ts: 'typescript', tsx: 'typescript',
+    py: 'python', pyw: 'python',
+    sh: 'bash', bash: 'bash', zsh: 'bash', fish: 'bash',
+    json: 'json',
+    xml: 'xml', html: 'xml', htm: 'xml', svg: 'xml',
+    css: 'css', scss: 'css', sass: 'css', less: 'css',
+    sql: 'sql',
+    yaml: 'yaml', yml: 'yaml',
+    md: 'markdown', markdown: 'markdown',
+    go: 'go',
+    java: 'java', kt: 'kotlin', kts: 'kotlin', scala: 'scala',
+    php: 'php',
+    rb: 'ruby',
+    rs: 'rust',
+    c: 'c', h: 'c',
+    cpp: 'cpp', hpp: 'cpp', cc: 'cpp', cxx: 'cpp',
+    cs: 'csharp',
+    swift: 'swift',
+    ini: 'ini', conf: 'ini', cfg: 'ini', cnf: 'ini', toml: 'ini',
+    dockerfile: 'dockerfile',
+    makefile: 'plaintext',
+    lua: 'lua',
+    pl: 'perl', pm: 'perl', perl: 'perl',
+    r: 'r',
+    vue: 'xml', svelte: 'xml', astro: 'xml',
+    graphql: 'plaintext', gql: 'plaintext',
+    env: 'shell',
 };
 
 export function isTextFile(fileName) {
     if (!fileName) return false;
-    const name = fileName.toLowerCase();
-    const baseName = name.split('/').pop();
+    const baseName = fileName.toLowerCase().split('/').pop();
     if (SPECIAL_TEXT_FILES.includes(baseName)) return true;
     const ext = baseName.split('.').pop();
     if (ext === baseName) return false;
@@ -62,9 +61,7 @@ export function isTextFile(fileName) {
 
 export function getLanguageFromExt(fileName) {
     if (!fileName) return 'plaintext';
-    const name = fileName.toLowerCase();
-    const baseName = name.split('/').pop();
-    // 特殊文件名
+    const baseName = fileName.toLowerCase().split('/').pop();
     if (baseName === 'dockerfile') return 'dockerfile';
     if (baseName === 'makefile' || baseName === 'rakefile') return 'plaintext';
     if (baseName.startsWith('.env')) return 'shell';

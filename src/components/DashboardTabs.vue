@@ -1,40 +1,52 @@
 <template>
     <div class="tabs">
-        <span class="title" @click="refreshDashboard">
-            <font-awesome-icon :icon="iconName" class="fa-images"></font-awesome-icon>
-            {{ titleName }}
-        </span>
-        <el-dropdown 
-            @command="handleTabClick" 
-            class="tabs-dropdown" 
-            role="navigation" 
-            @visible-change="handleDropdownVisible" 
-            popper-class="tabs-dropdown-popper"
+        <div
+            class="page-switcher"
+            :class="{ 'is-open': isPageMenuOpen }"
+            role="navigation"
+            @click.stop
+            @pointerdown.stop
+            @mouseenter="handlePageSwitcherEnter"
+            @mouseleave="handlePageSwitcherLeave"
         >
-            <span class="tabs-dropdown-link">
-                <font-awesome-icon icon="bars" class="tabs-arrow"></font-awesome-icon>
-            </span>
-            <template #dropdown>
-                <el-dropdown-menu>
-                    <el-dropdown-item command="dashboard" v-if="activeTab !== 'dashboard'">
-                        <font-awesome-icon icon="images" style="margin-right: 5px; width: 16px;"></font-awesome-icon>
-                        {{ $t('dashboardTabs.fileManagement') }}
-                    </el-dropdown-item>
-                    <el-dropdown-item command="customerConfig" v-if="activeTab !== 'customerConfig'">
-                        <font-awesome-icon icon="user-cog" style="margin-right: 5px; width: 16px;"></font-awesome-icon>
-                        {{ $t('dashboardTabs.userManagement') }}
-                    </el-dropdown-item>
-                    <el-dropdown-item command="systemConfig" v-if="activeTab !== 'systemConfig'">
-                        <font-awesome-icon icon="cogs" style="margin-right: 5px; width: 16px;"></font-awesome-icon>
-                        {{ $t('dashboardTabs.systemSettings') }}
-                    </el-dropdown-item>
-                    <el-dropdown-item command="">
-                        <font-awesome-icon icon="upload" style="margin-right: 5px; width: 16px;"></font-awesome-icon>
-                        {{ $t('dashboardTabs.fileUpload') }}
-                    </el-dropdown-item>
-                </el-dropdown-menu>
-            </template>
-        </el-dropdown>
+            <div class="page-switcher-sheet" role="menu" @click.stop>
+                <button
+                    class="page-option is-current"
+                    type="button"
+                    role="menuitem"
+                    aria-current="page"
+                    :aria-expanded="isPageMenuOpen"
+                    @click.stop="handlePageOptionClick(activePageOption.name)"
+                >
+                    <font-awesome-icon :icon="activePageOption.icon" class="page-option-icon"></font-awesome-icon>
+                    <span class="page-switcher-title">{{ $t(activePageOption.label) }}</span>
+                    <font-awesome-icon
+                        icon="chevron-down"
+                        class="page-switcher-arrow"
+                    ></font-awesome-icon>
+                </button>
+                <div class="page-option-list" @mouseleave="clearHoveredPageOption">
+                    <span
+                        class="page-option-highlight"
+                        :class="{ 'is-visible': hoveredPageOptionIndex !== null }"
+                        :style="{ '--hovered-option-index': hoveredPageOptionIndex === null ? 0 : hoveredPageOptionIndex }"
+                        aria-hidden="true"
+                    ></span>
+                    <button
+                        v-for="(option, index) in inactivePageOptions"
+                        :key="option.name"
+                        class="page-option"
+                        type="button"
+                        role="menuitem"
+                        @mouseenter="setHoveredPageOption(index)"
+                        @click.stop="handlePageOptionClick(option.name)"
+                    >
+                        <font-awesome-icon :icon="option.icon" class="page-option-icon"></font-awesome-icon>
+                        <span class="page-switcher-title">{{ $t(option.label) }}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
         <AdminToggleDark/>
         <LanguageSwitcher class="tabs-language-switcher"/>
     </div>
@@ -56,45 +68,96 @@ export default {
         AdminToggleDark,
         LanguageSwitcher
     },
+    data() {
+        return {
+            isPageMenuOpen: false,
+            hoveredPageOptionIndex: null
+        }
+    },
     computed: {
-        titleName() {
-            if (this.activeTab === 'dashboard') {
-                return this.$t('dashboardTabs.fileManagement');
-            } else if (this.activeTab === 'customerConfig') {
-                return this.$t('dashboardTabs.userManagement');
-            } else if (this.activeTab === 'systemConfig') {
-                return this.$t('dashboardTabs.systemSettings');
-            } else {
-                return this.$t('dashboardTabs.fileUpload');
-            }
+        pageOptions() {
+            return [
+                { name: 'dashboard', icon: 'images', label: 'dashboardTabs.fileManagement' },
+                { name: 'customerConfig', icon: 'user-cog', label: 'dashboardTabs.userManagement' },
+                { name: 'systemConfig', icon: 'cogs', label: 'dashboardTabs.systemSettings' },
+                { name: '', icon: 'upload', label: 'dashboardTabs.fileUpload' }
+            ];
         },
-        iconName() {
-            if (this.activeTab === 'dashboard') {
-                return 'images';
-            } else if (this.activeTab === 'customerConfig') {
-                return 'user-cog';
-            } else if (this.activeTab === 'systemConfig') {
-                return 'cogs';
-            } else {
-                return 'upload';
-            }
+        activePageOption() {
+            return this.pageOptions.find(option => option.name === this.activeTab) || this.pageOptions[0];
+        },
+        inactivePageOptions() {
+            return this.pageOptions.filter(option => option.name !== this.activePageOption.name);
         }
     },
     methods: {
+        handleDocumentClick(event) {
+            if (this.$el?.contains(event.target)) {
+                return;
+            }
+            this.closePageMenu();
+        },
         refreshDashboard() {
             location.reload();
         },
         handleTabClick(tab) {
+            this.closePageMenu();
+            if (tab === this.activeTab) {
+                this.refreshDashboard();
+                return;
+            }
             this.$router.push(`/${tab}`);
         },
-        handleDropdownVisible(isVisible) {
-            const arrow = document.querySelector('.tabs-dropdown-link');
-            if (isVisible) {
-                arrow.classList.add('rotate-up'); // 添加旋转类
-            } else {
-                arrow.classList.remove('rotate-up'); // 移除旋转类
+        isTouchViewport() {
+            return window.matchMedia('(hover: none), (pointer: coarse)').matches;
+        },
+        handlePageOptionClick(tab) {
+            if (this.isTouchViewport() && !this.isPageMenuOpen && tab !== this.activeTab) {
+                this.openPageMenu();
+                return;
             }
+            if (tab === this.activeTab) {
+                if (this.isTouchViewport()) {
+                    this.togglePageMenu();
+                } else {
+                    this.openPageMenu();
+                }
+                return;
+            }
+            this.handleTabClick(tab);
+        },
+        handlePageSwitcherEnter() {
+            if (!this.isTouchViewport()) {
+                this.openPageMenu();
+            }
+        },
+        handlePageSwitcherLeave() {
+            if (!this.isTouchViewport()) {
+                this.closePageMenu();
+            }
+        },
+        setHoveredPageOption(index) {
+            this.hoveredPageOptionIndex = index;
+        },
+        clearHoveredPageOption() {
+            this.hoveredPageOptionIndex = null;
+        },
+        openPageMenu() {
+            this.isPageMenuOpen = true;
+        },
+        togglePageMenu() {
+            this.isPageMenuOpen = !this.isPageMenuOpen;
+        },
+        closePageMenu() {
+            this.isPageMenuOpen = false;
+            this.clearHoveredPageOption();
         }
+    },
+    mounted() {
+        document.addEventListener('click', this.handleDocumentClick);
+    },
+    beforeUnmount() {
+        document.removeEventListener('click', this.handleDocumentClick);
     }
 }
 </script>
@@ -107,59 +170,182 @@ export default {
     gap: 8px;
 }
 
-.title {
+.page-switcher {
+    position: relative;
+    display: grid;
+    align-items: start;
+    height: 44px;
+    overflow: visible;
+}
+
+.page-switcher.is-open {
+    z-index: 1200;
+}
+
+.page-switcher-sheet {
+    position: relative;
+    isolation: isolate;
     display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 4px;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    box-sizing: border-box;
+    background-color: transparent;
+    overflow: visible;
+    transition: none;
+}
+
+.page-switcher-sheet::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 0;
+    height: 156px;
+    border: 1px solid var(--tabs-switcher-border-color);
+    border-radius: 14px;
+    background: var(--tabs-dropdown-popper-bg-color);
+    box-shadow: var(--tabs-dropdown-popper-shadow);
+    opacity: 0;
+    transform: translateY(-4px) scaleY(0.72);
+    transform-origin: top center;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+}
+
+.page-switcher.is-open .page-switcher-sheet::before {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+    pointer-events: auto;
+}
+
+.page-switcher-title {
+    line-height: 1;
+}
+
+.page-switcher-arrow {
+    margin-left: auto;
+    font-size: 0.75em;
+    color: var(--tabs-switcher-accent-color);
+    transition: transform 0.3s ease;
+}
+
+.page-switcher.is-open .page-switcher-arrow {
+    transform: rotate(180deg);
+}
+
+.page-option {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    flex: 0 0 auto;
     align-items: center;
+    box-sizing: border-box;
+    gap: 7px;
+    width: 100%;
+    min-width: 148px;
+    height: 37px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 10px;
+    color: var(--admin-container-color);
+    background: transparent;
+    font-size: 15px;
+    font-weight: 600;
+    font-family: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: none;
+}
+
+.page-option-list {
+    position: absolute;
+    top: 41px;
+    left: 5px;
+    right: 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-9px) scaleY(0.86);
+    transform-origin: top center;
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.page-option-list .page-option {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+}
+
+.page-option-highlight {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 0;
+    height: 37px;
+    border-radius: 10px;
+    background: var(--tabs-switcher-hover-bg);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(calc(var(--hovered-option-index) * 37px));
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.page-option-highlight.is-visible {
+    opacity: 1;
+}
+
+.page-switcher.is-open .page-option-list {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0) scaleY(1);
+}
+
+.page-option.is-current {
+    height: 37px;
     gap: 8px;
+    padding: 0 14px;
+    color: var(--tabs-switcher-current-color);
+    background: var(--tabs-switcher-current-bg);
+    border: 1px solid var(--tabs-switcher-current-border-color);
+    box-shadow: none;
     font-size: 1.1em;
     font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    color: var(--admin-container-color);
-    padding: 5px 12px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%);
-    border: 1px solid rgba(99, 102, 241, 0.15);
+    line-height: 1.15;
 }
 
-.title:hover {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.1) 100%);
-    border-color: rgba(99, 102, 241, 0.25);
-    transform: translateY(-1px);
+.page-option.is-current > .page-option-icon {
+    width: 17px;
+    font-size: 1.05em;
 }
 
-.title .fa-images {
-    font-size: 1em;
-    color: var(--el-color-primary);
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+.page-option.is-current > .page-option-icon,
+.page-option.is-current > .page-switcher-title,
+.page-option.is-current > .page-switcher-arrow {
+    translate: 0 1px;
 }
 
-.tabs-dropdown {
-    display: flex;
-    align-items: center;
+.page-option:hover {
+    color: var(--tabs-switcher-accent-color);
+    background-color: transparent;
 }
 
-.tabs-dropdown-link {
-    cursor: pointer;
-    font-size: 1.3em;
-    transition: all 0.3s ease;
-    color: var(--admin-container-color);
-    padding: 5px 8px;
-    border-radius: 8px;
-    background: transparent;
+.page-option.is-current:hover {
+    color: var(--tabs-switcher-current-color);
+    background: var(--tabs-switcher-current-bg);
 }
 
-.tabs-dropdown-link:hover {
-    background: rgba(99, 102, 241, 0.1);
-    color: var(--el-color-primary);
-}
-
-.tabs-dropdown-link.rotate-up {
-    color: var(--el-color-primary);
-    background: rgba(99, 102, 241, 0.1);
+.page-option-icon {
+    width: 16px;
+    color: var(--tabs-switcher-accent-color);
 }
 
 /* 移动端适配 */
@@ -168,15 +354,59 @@ export default {
         gap: 6px;
     }
 
-    .title {
-        font-size: 1em;
-        padding: 3px 8px;
-        gap: 5px;
+    .page-switcher-title {
+        max-width: 6em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
-    
-    .tabs-dropdown-link {
-        font-size: 1.1em;
-        padding: 3px 6px;
+
+    .page-switcher-sheet {
+        width: max-content;
+        max-width: calc(100vw - 96px);
+    }
+
+    .page-switcher-sheet::before {
+        height: 136px;
+        transform: translateY(-3px) scaleY(0.72);
+    }
+
+    .page-option {
+        justify-content: flex-start;
+        min-width: 0;
+        height: 32px;
+        padding: 0 10px;
+        font-size: 12px;
+        gap: 6px;
+    }
+
+    .page-option-icon {
+        width: 15px;
+    }
+
+    .page-option-list {
+        top: 36px;
+        transform: translateY(-8px) scaleY(0.86);
+    }
+
+    .page-option-highlight {
+        height: 32px;
+        transform: translateY(calc(var(--hovered-option-index) * 32px));
+    }
+
+    .page-option.is-current {
+        height: 32px;
+        gap: 5px;
+        padding: 0 10px;
+        font-size: 1em;
+    }
+
+    .page-option.is-current > .page-option-icon {
+        width: 16px;
+    }
+
+    .page-option.is-current > .page-switcher-arrow {
+        margin-left: 4px;
     }
 
     .tabs-language-switcher {
@@ -192,29 +422,13 @@ export default {
     padding: 5px;
 }
 
-/* el-dropdown有关的全局样式在index.html中定义 */
-</style>
-
-<style>
-.el-dropdown__popper.el-popper.tabs-dropdown-popper {
-    border-radius: 12px;
-    border: none;
-    background-color: var(--tabs-dropdown-popper-bg-color);
-    backdrop-filter: blur(10px);
-    box-shadow: var(--tabs-dropdown-popper-shadow);
-}
-.el-dropdown__popper.el-popper.tabs-dropdown-popper .el-dropdown-menu {
-    border: none;
-    background: none;
-}
-.el-dropdown__popper.el-popper.tabs-dropdown-popper .el-dropdown-menu__item {
-    border: none;
-    background: none;
-    font-size: 16px;
-    font-weight: bold;
-    transition: font-size 0.3s ease;
-}
-.el-dropdown__popper.el-popper.tabs-dropdown-popper .el-dropdown-menu__item:hover {
-    font-size: 18px;
+/* 导航栏内主题/语言切换按钮:移除有色背景与毛玻璃,仅保留图标 */
+.tabs :deep(#themeToggle),
+.tabs :deep(#themeToggle:hover),
+.tabs :deep(.language-switcher),
+.tabs :deep(.language-switcher:hover) {
+    background-color: transparent !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
 }
 </style>

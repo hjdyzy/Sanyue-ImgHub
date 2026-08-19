@@ -16,17 +16,17 @@
             <div v-if="showActions" class="action-bar">
                 <div class="action-bar-left"></div>
                 <div class="action-bar-right">
-                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.copyLink')" placement="top">
+                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.copyLink')" placement="top" :show-after="1000">
                         <button class="action-btn" @click.stop="$emit('copy')">
                             <font-awesome-icon icon="copy"></font-awesome-icon>
                         </button>
                     </el-tooltip>
-                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.moveFile')" placement="top">
+                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.moveFile')" placement="top" :show-after="1000">
                         <button class="action-btn" @click.stop="$emit('move')">
                             <font-awesome-icon icon="file-export"></font-awesome-icon>
                         </button>
                     </el-tooltip>
-                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.delete')" placement="top">
+                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.delete')" placement="top" :show-after="1000">
                         <button class="action-btn action-btn-danger" @click.stop="$emit('delete')">
                             <font-awesome-icon icon="trash-alt"></font-awesome-icon>
                         </button>
@@ -70,7 +70,13 @@ export default {
 .img-card {
     width: 100%;
     height: 22vh;
-    background: var(--admin-dashboard-imgcard-bg-color);
+    content-visibility: auto;
+    contain: layout paint style;
+    contain-intrinsic-size: 260px;
+    background-color: var(--glass-bg) !important;
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid var(--glass-border);
     border-radius: 8px;
     box-shadow: var(--admin-dashboard-imgcard-shadow);
     overflow: hidden;
@@ -88,6 +94,14 @@ export default {
     right: 10px;
     transform: scale(1.5);
     z-index: 10;
+}
+
+.img-card :deep(.el-checkbox__inner) {
+    width: 14px !important;
+    min-width: 14px;
+    height: 14px !important;
+    min-height: 14px;
+    border-radius: 50% !important;
 }
 .img-card:hover {
     transform: scale(1.05);
@@ -108,14 +122,14 @@ export default {
     transition: transform 0.4s ease;
 }
 .img-card:hover .folder-icon-svg {
-    transform: scale(1.08);
+    transform: scale(1.03);
 }
 .card-bottom-overlay {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.25) 50%, transparent 100%);
     padding: clamp(15px, 2.5vh, 30px) clamp(6px, 1vw, 12px) clamp(5px, 0.8vh, 10px);
     display: flex;
     flex-direction: column;
@@ -181,6 +195,34 @@ export default {
     background: rgba(239, 68, 68, 0.6);
 }
 @media (max-width: 768px) {
+    .img-card {
+        height: 148px;
+        border-radius: 7px;
+        contain-intrinsic-size: 148px;
+    }
+
+    .img-card :deep(.el-checkbox) {
+        top: 6px;
+        right: 6px;
+        transform: scale(1.1);
+    }
+
+    .img-card:hover {
+        transform: none;
+    }
+
+    .folder-icon-svg {
+        font-size: 36px;
+    }
+
+    .card-bottom-overlay {
+        padding: 22px 6px 6px;
+    }
+
+    .file-name {
+        font-size: 11px;
+    }
+
     .action-bar {
         display: none !important;
     }

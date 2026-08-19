@@ -7,9 +7,11 @@
     >
         <!-- 复选框 -->
         <div class="list-col list-col-checkbox">
-            <span class="custom-checkbox" :class="{ 'checked': localSelected }" @click.stop="toggleSelect">
-                <font-awesome-icon v-if="localSelected" icon="check" class="check-icon"/>
-            </span>
+            <el-checkbox
+                v-model="localSelected"
+                @click.stop
+                @change="handleSelectChange"
+            />
         </div>
         <!-- 预览 -->
         <div class="list-col list-col-preview" @click="handlePreviewClick">
@@ -71,35 +73,35 @@
         <!-- 操作 -->
         <div class="list-col list-col-actions">
             <template v-if="!isFolder">
-                <el-tooltip :content="$t('dashboard.copyLink')" placement="top">
+                <el-tooltip :content="$t('dashboard.copyLink')" placement="top" :show-after="1000">
                     <button class="list-action-btn" @click.stop="$emit('copy')">
                         <font-awesome-icon icon="copy"/>
                     </button>
                 </el-tooltip>
-                <el-tooltip :content="$t('dashboard.downloadFile')" placement="top">
+                <el-tooltip :content="$t('dashboard.downloadFile')" placement="top" :show-after="1000">
                     <button class="list-action-btn" @click.stop="$emit('download')">
                         <font-awesome-icon icon="download"/>
                     </button>
                 </el-tooltip>
-                <el-tooltip :content="$t('dashboard.moveFile')" placement="top">
+                <el-tooltip :content="$t('dashboard.moveFile')" placement="top" :show-after="1000">
                     <button class="list-action-btn" @click.stop="$emit('move')">
                         <font-awesome-icon icon="file-export"/>
                     </button>
                 </el-tooltip>
             </template>
             <template v-else>
-                <el-tooltip :content="$t('dashboard.copyLink')" placement="top">
+                <el-tooltip :content="$t('dashboard.copyLink')" placement="top" :show-after="1000">
                     <button class="list-action-btn" @click.stop="$emit('folderCopy')">
                         <font-awesome-icon icon="copy"/>
                     </button>
                 </el-tooltip>
-                <el-tooltip :content="$t('dashboard.moveFile')" placement="top">
+                <el-tooltip :content="$t('dashboard.moveFile')" placement="top" :show-after="1000">
                     <button class="list-action-btn" @click.stop="$emit('move')">
                         <font-awesome-icon icon="file-export"/>
                     </button>
                 </el-tooltip>
             </template>
-            <el-tooltip :content="$t('dashboard.delete')" placement="top">
+            <el-tooltip :content="$t('dashboard.delete')" placement="top" :show-after="1000">
                 <button class="list-action-btn list-action-danger" @click.stop="$emit('delete')">
                     <font-awesome-icon icon="trash-alt"/>
                 </button>
@@ -186,9 +188,9 @@ export default {
         }
     },
     methods: {
-        toggleSelect() {
-            this.localSelected = !this.localSelected;
-            this.$emit('update:selected', this.localSelected);
+        handleSelectChange(value) {
+            this.localSelected = value;
+            this.$emit('update:selected', value);
         },
         handlePreviewClick() {
             if (this.isFolder) {
@@ -212,6 +214,9 @@ export default {
 .list-item {
     display: grid;
     grid-template-columns: 50px 60px minmax(180px, 1fr) 130px 100px 110px 130px 80px 100px 120px;
+    content-visibility: auto;
+    contain: layout paint style;
+    contain-intrinsic-size: 65px;
     padding: 12px 20px;
     align-items: center;
     transition: background 0.2s ease;
@@ -232,6 +237,11 @@ export default {
     justify-content: center;
     min-width: 40px;
 }
+
+.list-col-checkbox :deep(.el-checkbox) {
+    --el-checkbox-input-width: 16px;
+    --el-checkbox-input-height: 16px;
+}
 .list-col-preview {
     justify-content: center;
     cursor: pointer;
@@ -243,7 +253,7 @@ export default {
     min-width: 0;
 }
 .list-col-name:hover {
-    color: #38bdf8;
+    color: var(--primary-color-accent);
 }
 .filename-ellipsis {
     display: flex;
@@ -291,29 +301,6 @@ export default {
     gap: 4px;
     flex-wrap: nowrap;
     overflow: hidden;
-}
-.custom-checkbox {
-    width: 18px;
-    height: 18px;
-    border: 2px solid var(--el-border-color);
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    background: transparent;
-}
-.custom-checkbox:hover {
-    border-color: #38bdf8;
-}
-.custom-checkbox.checked {
-    background: linear-gradient(135deg, #0ea5e9, #38bdf8);
-    border-color: #38bdf8;
-}
-.custom-checkbox .check-icon {
-    font-size: 10px;
-    color: white;
 }
 .color-tag {
     padding: 2px 8px;
@@ -366,7 +353,7 @@ export default {
     transition: all 0.2s ease;
 }
 .list-action-btn:hover {
-    background: #38bdf8;
+    background: var(--primary-color);
     color: white;
 }
 .list-action-danger:hover {
@@ -374,15 +361,40 @@ export default {
 }
 @media (max-width: 768px) {
     .list-item {
-        grid-template-columns: 28px 40px 1fr auto;
-        padding: 10px 8px;
-        gap: 8px;
+        grid-template-columns: 20px 34px 1fr auto;
+        padding: 8px 6px;
+        gap: 6px;
+        font-size: 12px;
     }
     .list-col-size, .list-col-date, .list-col-tags, .list-col-channel, .list-col-channel-name, .list-col-address {
         display: none;
     }
-    .list-col-actions { gap: 4px; }
-    .list-action-btn { width: 28px; height: 28px; }
-    .list-col-checkbox { width: 24px; min-width: 24px; }
+    .list-col-name {
+        padding-right: 8px;
+        line-height: 1.25;
+    }
+    .list-preview-img {
+        width: 34px;
+        height: 34px;
+        border-radius: 5px;
+    }
+    .list-folder-icon {
+        font-size: 24px;
+    }
+    .list-file-icon {
+        font-size: 21px;
+    }
+    .list-col-actions { gap: 3px; }
+    .list-action-btn {
+        width: 26px;
+        height: 26px;
+        border-radius: 7px;
+        font-size: 12px;
+    }
+    .list-col-checkbox { width: 18px; min-width: 18px; }
+    .list-col-checkbox :deep(.el-checkbox) {
+        --el-checkbox-input-width: 14px;
+        --el-checkbox-input-height: 14px;
+    }
 }
 </style>

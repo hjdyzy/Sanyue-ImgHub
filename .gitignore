@@ -7,6 +7,9 @@ CLAUDE.md
 # local env files
 .env.local
 .env.*.local
+.env.development
+.env.production
+.env.test
 
 # Log files
 npm-debug.log*

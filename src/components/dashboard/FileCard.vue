@@ -49,13 +49,14 @@
         </div>
         
         <!-- 图片预览 -->
-        <el-image
+        <el-image 
             v-else-if="isImage"
-            :preview-teleported="true"
-            :src="fileLink"
-            :preview-src-list="previewSrcList"
-            fit="cover"
-            lazy
+            :preview-teleported="true" 
+            :src="fileLink" 
+            :preview-src-list="previewSrcList" 
+            fit="cover" 
+            lazy 
+            decoding="async"
             class="image-preview"
         >
             <template #placeholder>
@@ -69,7 +70,6 @@
             </template>
         </el-image>
 
-        <!-- 文本文件预览 -->
         <div v-else-if="isText" class="file-preview text-file-card"
             @click="$emit('textPreview')"
             @mouseenter="$emit('textHover')"
@@ -83,11 +83,11 @@
                 <div v-if="textPreviewHasMore" class="text-preview-more"></div>
             </div>
             <div v-else class="text-file-placeholder">
-                <font-awesome-icon icon="file-code" class="file-icon" style="font-size: 32px;" />
-                <span style="font-size: 11px; opacity: 0.5; margin-top: 6px;">悬停预览</span>
+                <font-awesome-icon icon="file-alt" class="file-icon" style="font-size: 32px;" />
+                <span class="text-file-hint">悬停预览</span>
             </div>
         </div>
-
+        
         <!-- 其他文件 -->
         <div v-else class="file-preview">
             <font-awesome-icon icon="file" class="file-icon"/>
@@ -100,29 +100,29 @@
             </div>
             <div class="action-bar">
                 <div class="action-bar-left">
-                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.detail')" placement="top">
+                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.detail')" placement="top" :show-after="1000">
                         <button class="action-btn" @click.stop="$emit('detail')">
                             <font-awesome-icon icon="info-circle"></font-awesome-icon>
                         </button>
                     </el-tooltip>
                 </div>
                 <div class="action-bar-right">
-                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.moveFile')" placement="top">
+                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.moveFile')" placement="top" :show-after="1000">
                         <button class="action-btn" @click.stop="$emit('move')">
                             <font-awesome-icon icon="file-export"></font-awesome-icon>
                         </button>
                     </el-tooltip>
-                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.delete')" placement="top">
+                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.delete')" placement="top" :show-after="1000">
                         <button class="action-btn action-btn-danger" @click.stop="$emit('delete')">
                             <font-awesome-icon icon="trash-alt"></font-awesome-icon>
                         </button>
                     </el-tooltip>
-                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.downloadFile')" placement="top">
+                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.downloadFile')" placement="top" :show-after="1000">
                         <button class="action-btn" @click.stop="$emit('download')">
                             <font-awesome-icon icon="download"></font-awesome-icon>
                         </button>
                     </el-tooltip>
-                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.copyLink')" placement="top">
+                    <el-tooltip :disabled="disableTooltip" :content="$t('dashboard.copyLink')" placement="top" :show-after="1000">
                         <button class="action-btn" @click.stop="$emit('copy')">
                             <font-awesome-icon icon="copy"></font-awesome-icon>
                         </button>
@@ -146,7 +146,7 @@ export default {
         disableTooltip: { type: Boolean, default: false },
         textPreviewLoading: { type: Boolean, default: false },
         textPreviewHighlighted: { type: String, default: '' },
-        textPreviewHasMore: { type: Boolean, default: false },
+        textPreviewHasMore: { type: Boolean, default: false }
     },
     emits: ['update:selected', 'detail', 'copy', 'move', 'delete', 'download', 'touchstart', 'touchend', 'touchmove', 'textPreview', 'textHover', 'textLeave'],
     data() {
@@ -177,17 +177,18 @@ export default {
             return name.endsWith('.mp3') || name.endsWith('.wav') || name.endsWith('.ogg') || name.endsWith('.flac');
         },
         isImage() {
+            // 先通过 content-type 判断
             const fileType = this.item.metadata?.FileType?.toLowerCase() || '';
             if (fileType.includes('image')) return true;
+            // 再通过文件后缀判断
             const name = this.item.name?.toLowerCase() || '';
-            return name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') ||
-                   name.endsWith('.gif') || name.endsWith('.webp') || name.endsWith('.svg') ||
+            return name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') || 
+                   name.endsWith('.gif') || name.endsWith('.webp') || name.endsWith('.svg') || 
                    name.endsWith('.bmp') || name.endsWith('.avif') || name.endsWith('.heic') || name.endsWith('.heif');
         },
         isText() {
-            const fileType = this.item.metadata?.FileType?.toLowerCase() || '';
-            if (fileType.startsWith('text/')) return true;
-            return isTextFile(this.item.name);
+            const fileType = this.item.metadata?.FileType?.toLowerCase().split(';')[0].trim() || '';
+            return fileType.startsWith('text/') || isTextFile(this.item.name);
         },
         displayName() {
             const fileName = this.item.metadata?.FileName || this.item.name || '';
@@ -258,12 +259,30 @@ export default {
 .img-card {
     width: 100%;
     height: 22vh;
-    background: var(--admin-dashboard-imgcard-bg-color);
+    content-visibility: auto;
+    contain: layout paint style;
+    contain-intrinsic-size: 260px;
+    background-color: var(--glass-bg) !important;
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid var(--glass-border);
     border-radius: 8px;
     box-shadow: var(--admin-dashboard-imgcard-shadow);
     overflow: hidden;
     position: relative;
     transition: transform 0.3s ease;
+}
+/* 顶部标签区柔和遮罩(从顶部往下淡出) */
+.img-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 45%;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.12) 50%, transparent 100%);
+    pointer-events: none;
+    z-index: 5;
 }
 .img-card :deep(.el-card__body) {
     padding: 0;
@@ -276,6 +295,14 @@ export default {
     right: 10px;
     transform: scale(1.5);
     z-index: 10;
+}
+
+.img-card :deep(.el-checkbox__inner) {
+    width: 14px !important;
+    min-width: 14px;
+    height: 14px !important;
+    min-height: 14px;
+    border-radius: 50% !important;
 }
 .img-card:hover {
     transform: scale(1.05);
@@ -293,7 +320,7 @@ export default {
 .img-card:hover .image-preview,
 .img-card:hover .video-preview,
 .img-card:hover .file-icon {
-    transform: scale(1.08);
+    transform: scale(1.03);
 }
 .image-preview:hover {
     opacity: 0.8;
@@ -318,7 +345,6 @@ export default {
     height: auto;
     line-height: 1.2;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(4px);
 }
 .fail-tag {
     background-color: rgba(220, 53, 69, 0.6);
@@ -331,7 +357,6 @@ export default {
     height: auto;
     line-height: 1.2;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(4px);
 }
 .primary-tag {
     background-color: rgba(250, 82, 194, 0.6);
@@ -346,7 +371,6 @@ export default {
     height: auto;
     line-height: 1.2;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(4px);
 }
 .file-preview {
     display: flex;
@@ -372,7 +396,7 @@ export default {
     bottom: 0;
     left: 0;
     right: 0;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.25) 50%, transparent 100%);
     padding: clamp(15px, 2.5vh, 30px) clamp(6px, 1vw, 12px) clamp(5px, 0.8vh, 10px);
     display: flex;
     flex-direction: column;
@@ -438,6 +462,51 @@ export default {
     background: rgba(239, 68, 68, 0.6);
 }
 @media (max-width: 768px) {
+    .img-card {
+        height: 148px;
+        border-radius: 7px;
+        contain-intrinsic-size: 148px;
+    }
+
+    .img-card :deep(.el-checkbox) {
+        top: 6px;
+        right: 6px;
+        transform: scale(1.1);
+    }
+
+    .img-card:hover {
+        transform: none;
+    }
+
+    .file-short-info {
+        gap: 3px;
+        max-width: calc(100% - 38px);
+    }
+
+    .success-tag,
+    .fail-tag,
+    .primary-tag {
+        max-width: 72px;
+        padding: 2px 5px;
+        border-radius: 5px;
+        font-size: 9px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .card-bottom-overlay {
+        padding: 22px 6px 6px;
+    }
+
+    .file-name {
+        font-size: 11px;
+    }
+
+    .file-icon {
+        font-size: 34px;
+    }
+
     .action-bar {
         display: none !important;
     }
@@ -510,6 +579,13 @@ export default {
     text-align: left;
     display: block;
 }
+.text-preview-content .hljs {
+    background: transparent !important;
+    padding: 0 !important;
+    text-align: left;
+    white-space: pre;
+    display: block;
+}
 .text-preview-more {
     position: absolute;
     bottom: 0;
@@ -526,5 +602,10 @@ export default {
     width: 100%;
     height: 100%;
     color: #c9d1d9;
+}
+.text-file-hint {
+    font-size: 11px;
+    opacity: 0.5;
+    margin-top: 6px;
 }
 </style>

@@ -350,7 +350,7 @@ export default {
 .popular-tags-section h4 {
     margin: 0 0 10px 0;
     font-size: 14px;
-    color: #606266;
+    color: var(--el-text-color-regular);
 }
 
 .tags-container {
@@ -369,12 +369,8 @@ export default {
     transition: transform 0.2s;
 }
 
-.tag-item.clickable:hover {
-    transform: translateY(-2px);
-}
-
 .empty-message {
-    color: #909399;
+    color: var(--el-text-color-secondary);
     font-size: 13px;
     padding: 10px 0;
 }

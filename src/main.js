@@ -5,14 +5,14 @@ import 'element-plus/es/components/message/style/css'
 import 'element-plus/es/components/message-box/style/css'
 
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { fas } from '@fortawesome/free-solid-svg-icons'; // 引入所有 solid 图标
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+import fontAwesomeIcons from './utils/fontawesomeIcons';
 
 import App from './App.vue'
 import router from './router'
 import store from './store'
-import { loadHighlightTheme } from './utils/highlightTheme'
 import i18n from './locales'
+import { loadHighlightTheme } from './utils/highlightTheme'
 
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import 'element-plus/theme-chalk/dark/css-vars.css'
@@ -22,10 +22,11 @@ import './styles/global.css'
 import 'overlayscrollbars/overlayscrollbars.css'
 
 
-library.add(fas);
+library.add(...fontAwesomeIcons);
 
 const app = createApp(App);
 const head = createHead(); // 创建 head 对象
+loadHighlightTheme(store.state.codeTheme);
 
 app.component('font-awesome-icon', FontAwesomeIcon);
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
@@ -88,21 +89,19 @@ const presetSiteIcon = (isDarkMode, userConfig) => {
     maskIconLink.rel = 'mask-icon';
 
     if (isDarkMode) {
-        iconLink.href = userConfig?.siteIcon || '/logo-dark.png';
-        appleIconLink.href = userConfig?.siteIcon || '/logo-dark.png';
-        maskIconLink.href = userConfig?.siteIcon || '/logo-dark.png';
+        iconLink.href = userConfig?.siteIcon || '/static/media/logo-dark.png';
+        appleIconLink.href = userConfig?.siteIcon || '/static/media/logo-dark.png';
+        maskIconLink.href = userConfig?.siteIcon || '/static/media/logo-dark.png';
     } else {
-        iconLink.href = userConfig?.siteIcon || '/logo.png';
-        appleIconLink.href = userConfig?.siteIcon || '/logo.png';
-        maskIconLink.href = userConfig?.siteIcon || '/logo.png';
+        iconLink.href = userConfig?.siteIcon || '/static/media/logo.png';
+        appleIconLink.href = userConfig?.siteIcon || '/static/media/logo.png';
+        maskIconLink.href = userConfig?.siteIcon || '/static/media/logo.png';
     }
 
     document.head.appendChild(iconLink);
     document.head.appendChild(appleIconLink);
     document.head.appendChild(maskIconLink);
 };
-
-app.use(head).use(store).use(router).use(ElementPlus).use(i18n);
 
 store.dispatch('fetchUserConfig').then(() => {
     // 初始化时应用 dark 模式
@@ -111,9 +110,6 @@ store.dispatch('fetchUserConfig').then(() => {
     // 预设网站标题和图标
     presetSiteTitle(store.getters.userConfig);
     presetSiteIcon(store.state.useDarkMode, store.getters.userConfig);
-
-    // 加载代码高亮主题
-    loadHighlightTheme(store.state.codeTheme);
 
     // 监听 useDarkMode 和 cusDarkMode 的变化
     store.subscribe((mutation, state) => {
@@ -131,15 +127,13 @@ store.dispatch('fetchUserConfig').then(() => {
             presetSiteIcon(store.state.useDarkMode, store.getters.userConfig);
         }
 
-        // 监听代码主题变化
         if (mutation.type === 'setCodeTheme') {
             loadHighlightTheme(mutation.payload);
         }
     });
 
-    app.mount('#app');
+    app.use(head).use(store).use(router).use(ElementPlus).use(i18n).mount('#app');
 }).catch(error => {
     console.error('Failed to load user configuration:', error);
-    loadHighlightTheme(store.state.codeTheme);
-    app.mount('#app');
+    app.use(store).use(router).use(ElementPlus).use(i18n).use(head).mount('#app');
 })

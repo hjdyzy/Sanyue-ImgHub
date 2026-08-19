@@ -6,7 +6,9 @@ export default createStore({
   state: {
     userConfig: null,
     bingWallPapers: [],
-    credentials: null,
+    // 会话状态标记（不存储密码，实际认证通过 HttpOnly Cookie）
+    adminLoggedIn: false,
+    userLoggedIn: false,
     uploadMethod: 'default',
     uploadCopyUrlForm: '',
     compressConfig: {
@@ -33,13 +35,14 @@ export default createStore({
     // 深色模式
     useDarkMode: null,
     cusDarkMode: false,
-    // 代码主题
+    // 代码高亮主题
     codeTheme: 'tokyo-night-dark',
   },
   getters: {
     userConfig: state => state.userConfig,
     bingWallPapers: state => state.bingWallPapers,
-    credentials: state => state.credentials,
+    adminLoggedIn: state => state.adminLoggedIn,
+    userLoggedIn: state => state.userLoggedIn,
     storeUploadMethod: state => state.uploadMethod,
     uploadCopyUrlForm: state => state.uploadCopyUrlForm,
     compressConfig: state => state.compressConfig,
@@ -54,8 +57,8 @@ export default createStore({
     },
     useDarkMode: state => state.useDarkMode,
     cusDarkMode: state => state.cusDarkMode,
-    storeAutoReUpload: state => state.autoReUpload,
     codeTheme: state => state.codeTheme,
+    storeAutoReUpload: state => state.autoReUpload,
   },
   mutations: {
     setUserConfig(state, userConfig) {
@@ -64,8 +67,11 @@ export default createStore({
     setBingWallPapers(state, bingWallPapers) {
       state.bingWallPapers = bingWallPapers;
     },
-    setCredentials(state, credentials) {
-      state.credentials = credentials;
+    setAdminLoggedIn(state, loggedIn) {
+      state.adminLoggedIn = loggedIn;
+    },
+    setUserLoggedIn(state, loggedIn) {
+      state.userLoggedIn = loggedIn;
     },
     setUploadMethod(state, uploadMethod) {
       state.uploadMethod = uploadMethod;
@@ -100,15 +106,15 @@ export default createStore({
     setCusDarkMode(state, cusDarkMode) {
       state.cusDarkMode = cusDarkMode;
     },
+    setCodeTheme(state, theme) {
+      state.codeTheme = theme;
+    },
     setStoreUploadFolder(state, folder) {
       state.uploadFolder = folder
       localStorage.setItem('uploadFolder', folder)
     },
     setStoreAutoReUpload(state, autoReUpload) {
       state.autoReUpload = autoReUpload;
-    },
-    setCodeTheme(state, theme) {
-      state.codeTheme = theme;
     }
   },
   actions: {
@@ -148,5 +154,24 @@ export default createStore({
   },
   modules: {
   },
-  plugins: [createPersistedState()]
+  plugins: [createPersistedState({
+    // 只持久化非敏感数据，不持久化认证状态
+    paths: [
+      'userConfig',
+      'uploadMethod',
+      'uploadCopyUrlForm',
+      'compressConfig',
+      'storeUploadChannel',
+      'storeChannelName',
+      'storeAutoRetry',
+      'storeUploadNameType',
+      'uploadFolder',
+      'customUrlSettings',
+      'adminUrlSettings',
+      'autoReUpload',
+      'useDarkMode',
+      'cusDarkMode',
+      'codeTheme',
+    ]
+  })]
 })

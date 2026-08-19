@@ -16,6 +16,7 @@
 <script>
 export default {
     name: 'FloatingSaveButton',
+    emits: ['click'],
     props: {
         loading: {
             type: Boolean,
@@ -65,7 +66,7 @@ export default {
     align-items: center;
     gap: 6px;
     padding: 10px 18px;
-    background: var(--floating-btn-bg);
+    background: var(--primary-color);
     color: var(--floating-btn-color);
     border-radius: 50px;
     cursor: pointer;
@@ -78,7 +79,6 @@ export default {
 }
 
 .floating-save-btn:hover {
-    transform: translateY(-2px);
     box-shadow: var(--floating-btn-shadow-hover);
 }
 

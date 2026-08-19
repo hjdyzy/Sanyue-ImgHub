@@ -178,6 +178,7 @@ export default {
                 { label: 'S3', value: 'S3' },
                 { label: 'Discord', value: 'Discord' },
                 { label: 'HuggingFace', value: 'HuggingFace' },
+                { label: 'WebDAV', value: 'WebDAV' },
                 { label: this.$t('filter.externalLink'), value: 'External' }
             ];
         },
@@ -259,12 +260,12 @@ export default {
 }
 
 .header-icon:hover {
-    color: var(--admin-purple);
+    color: var(--primary-color-accent);
     transform: scale(1.2);
 }
 
 .filter-badge :deep(.el-badge__content) {
-    background: linear-gradient(135deg, #0ea5e9, #38bdf8);
+    background: var(--primary-color);
     border: none;
     font-size: 10px;
     height: 16px;
@@ -325,7 +326,7 @@ export default {
 }
 
 .filter-options :deep(.el-checkbox__input.is-checked + .el-checkbox__label) {
-    color: #0ea5e9;
+    color: var(--primary-color-accent);
 }
 
 /* 渠道分组样式 */
@@ -347,8 +348,8 @@ export default {
 }
 
 .filter-options :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
-    background-color: #0ea5e9;
-    border-color: #0ea5e9;
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
 }
 
 .filter-actions {
@@ -367,8 +368,8 @@ export default {
 }
 
 .filter-actions .el-button:hover:not(:disabled) {
-    background: linear-gradient(135deg, #0ea5e9, #38bdf8);
-    border-color: #38bdf8;
+    background: var(--primary-color);
+    border-color: var(--primary-color-accent);
     color: white;
 }
 

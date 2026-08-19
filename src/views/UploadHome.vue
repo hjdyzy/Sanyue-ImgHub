@@ -9,10 +9,6 @@
             </el-button>
             <template #dropdown>
                 <el-dropdown-menu>
-                    <el-dropdown-item command="viewDocs">
-                        <font-awesome-icon icon="book" style="width: 16px; margin-right: 8px; text-align: center;"/>
-                        {{ $t('upload.viewDocs') }}
-                    </el-dropdown-item>
                     <el-dropdown-item command="showHistory">
                         <font-awesome-icon icon="history" style="width: 16px; margin-right: 8px; text-align: center;"/>
                         {{ $t('upload.history') }}
@@ -24,6 +20,10 @@
                     <el-dropdown-item command="toggleLanguage">
                         <font-awesome-icon icon="globe" style="width: 16px; margin-right: 8px; text-align: center;"/>
                         {{ $i18n.locale === 'zh-CN' ? 'English' : '简体中文' }}
+                    </el-dropdown-item>
+                    <el-dropdown-item command="viewDocs">
+                        <font-awesome-icon icon="book" style="width: 16px; margin-right: 8px; text-align: center;"/>
+                        {{ $t('upload.viewDocs') }}
                     </el-dropdown-item>
                 </el-dropdown-menu>
             </template>
@@ -61,7 +61,7 @@
                 </template>
             </DirectoryTreePicker>
         </div>
-        <el-tooltip :content="$t('upload.switchUploadMethod')" placement="bottom" :disabled="disableTooltip">
+        <el-tooltip :content="$t('upload.switchUploadMethod')" placement="bottom" :disabled="disableTooltip" :show-after="1000">
             <el-button class="upload-method-button desktop-only" @click="handleChangeUploadMethod">
                 <font-awesome-icon v-if="uploadMethod === 'default'"  icon="folder-open" class="upload-method-icon" size="lg"/>
                 <font-awesome-icon v-else-if="uploadMethod === 'paste'" icon="paste" class="upload-method-icon" size="lg"/>
@@ -83,10 +83,6 @@
                         <font-awesome-icon :icon="uploadMethod === 'default' ? 'paste' : 'folder-open'" style="width: 16px; margin-right: 8px; text-align: center;"/>
                         {{ uploadMethod === 'default' ? $t('upload.pasteUpload') : $t('upload.fileUpload') }}
                     </el-dropdown-item>
-                    <el-dropdown-item command="viewDocs">
-                        <font-awesome-icon icon="book" style="width: 16px; margin-right: 8px; text-align: center;"/>
-                        {{ $t('upload.viewDocs') }}
-                    </el-dropdown-item>
                     <el-dropdown-item command="showHistory">
                         <font-awesome-icon icon="history" style="width: 16px; margin-right: 8px; text-align: center;"/>
                         {{ $t('upload.history') }}
@@ -99,40 +95,58 @@
                         <font-awesome-icon icon="globe" style="width: 16px; margin-right: 8px; text-align: center;"/>
                         {{ $i18n.locale === 'zh-CN' ? 'English' : '简体中文' }}
                     </el-dropdown-item>
+                    <el-dropdown-item command="viewDocs">
+                        <font-awesome-icon icon="book" style="width: 16px; margin-right: 8px; text-align: center;"/>
+                        {{ $t('upload.viewDocs') }}
+                    </el-dropdown-item>
                 </el-dropdown-menu>
             </template>
         </el-dropdown>
-        <div class="toolbar-manage">
-            <el-button class="toolbar-manage-button" :class="{ 'active': isToolBarOpen}" size="large" @click="handleOpenToolbar" circle>
-                <font-awesome-icon v-if="!isToolBarOpen"  icon="bars" class="manage-icon" size="lg"/>
-                <font-awesome-icon v-else icon="times" class="manage-icon" size="lg"/>
+        <div
+            class="quick-toolbar"
+            :class="{ 'is-expanded': isQuickToolbarOpen }"
+            @mouseleave="handleQuickToolbarLeave"
+        >
+            <div class="quick-toolbar-actions">
+                <div class="quick-toolbar-actions-inner">
+                    <el-tooltip :disabled="disableTooltip || !isQuickToolbarOpen" :content="$t('upload.logout')" placement="left" :hide-after="0" :show-after="1000">
+                        <el-button class="quick-toolbar-button" @click="handleQuickToolbarCommand('logout')">
+                            <font-awesome-icon icon="sign-out-alt" class="quick-toolbar-icon"/>
+                        </el-button>
+                    </el-tooltip>
+                    <el-tooltip :disabled="disableTooltip || !isQuickToolbarOpen" :content="$t('upload.manage')" placement="left" :hide-after="0" :show-after="1000">
+                        <el-button class="quick-toolbar-button" @click="handleQuickToolbarCommand('manage')">
+                            <font-awesome-icon icon="cog" class="quick-toolbar-icon"/>
+                        </el-button>
+                    </el-tooltip>
+                    <el-tooltip :disabled="disableTooltip || !isQuickToolbarOpen" :content="$t('upload.linkFormat')" placement="left" :hide-after="0" :show-after="1000">
+                        <el-button class="quick-toolbar-button" @click="handleQuickToolbarCommand('linkFormat')">
+                            <font-awesome-icon icon="link" class="quick-toolbar-icon"/>
+                        </el-button>
+                    </el-tooltip>
+                </div>
+            </div>
+            <el-tooltip :disabled="disableTooltip" :content="$t('upload.settings')" placement="left" :hide-after="0" :show-after="1000">
+                <el-button class="quick-toolbar-button" @click="openCompressDialog">
+                    <font-awesome-icon icon="cloud-upload" class="quick-toolbar-icon"/>
+                </el-button>
+            </el-tooltip>
+            <el-button
+                class="quick-toolbar-button quick-toolbar-more"
+                :class="{ 'is-active': isQuickToolbarOpen }"
+                :aria-expanded="isQuickToolbarOpen"
+                @mouseenter="handleQuickToolbarMoreEnter"
+                @click="toggleQuickToolbar"
+            >
+                <font-awesome-icon icon="chevron-down" class="quick-toolbar-icon quick-toolbar-toggle-icon"/>
             </el-button>
-        </div>
-        <div class="toolbar">
-            <el-tooltip :disabled="disableTooltip" :content="$t('upload.settings')" placement="top">
-                <el-button class="toolbar-button compress-button" :class="{ 'active': isToolBarOpen}" size="large" @click="openCompressDialog" circle>
-                    <font-awesome-icon icon="cloud-upload" class="compress-icon" size="lg"/>
-                </el-button>
-            </el-tooltip>
-            <el-tooltip :disabled="disableTooltip" :content="$t('upload.linkFormat')" placement="left">
-                <el-button class="toolbar-button link-button" :class="{ 'active': isToolBarOpen}" size="large" @click="openUrlDialog" circle>
-                    <font-awesome-icon icon="link" class="link-icon" size="lg"/>
-                </el-button>
-            </el-tooltip>
-            <el-tooltip :disabled="disableTooltip" :content="$t('upload.manage')" placement="left">
-                <el-button class="toolbar-button config-button" :class="{ 'active': isToolBarOpen}" size="large" @click="handleManage" circle>
-                    <font-awesome-icon icon="cog" class="config-icon" size="lg"/>
-                </el-button>
-            </el-tooltip>
-            <el-tooltip :disabled="disableTooltip" :content="$t('upload.logout')" placement="left">
-                <el-button class="toolbar-button sign-out-button" :class="{ 'active': isToolBarOpen}" size="large" @click="handleLogout" circle>
-                    <font-awesome-icon icon="sign-out-alt" class="sign-out-icon" size="lg"/>
-                </el-button>
-            </el-tooltip>
         </div>
         <Logo :useConfigLink="true" />
         <div class="header">
-            <h1 class="title"><a class="main-title" href="https://github.com/MarSeventh/CloudFlare-ImgBed" target="_blank">{{ ownerName }}</a> ImgHub</h1>
+            <h1 class="title">
+                <span class="title-crayon-text" aria-hidden="true">{{ ownerName }} ImgHub</span>
+                <a class="main-title" href="https://github.com/MarSeventh/CloudFlare-ImgBed" target="_blank">{{ ownerName }}</a> ImgHub
+            </h1>
         </div>
         <UploadForm 
             :selectedUrlForm="selectedUrlForm" 
@@ -152,7 +166,7 @@
             :convertToWebp="convertToWebp"
             class="upload"
         />
-        <el-dialog :title="$t('settings.linkFormatTitle')" v-model="showUrlDialog" :width="dialogWidth" :show-close="false" class="settings-dialog">
+        <el-dialog :title="$t('settings.linkFormatTitle')" v-model="showUrlDialog" :width="dialogWidth" :show-close="false" class="settings-dialog settings-dialog-scope">
             <div class="dialog-section">
                 <div class="section-header">
                     <span class="section-title">{{ $t('settings.defaultCopyLink') }}</span>
@@ -206,6 +220,7 @@
             v-model="showCompressDialog"
             v-model:uploadChannel="uploadChannel"
             v-model:channelName="channelName"
+            :availableChannels="availableChannels"
             :currentChannelList="currentChannelList"
             v-model:uploadFolder="uploadFolder"
             v-model:autoRetry="autoRetry"
@@ -222,7 +237,7 @@
         <div v-html="announcementContent"></div>
         <template #footer>
             <span class="dialog-footer">
-                <el-button type="primary" @click="showAnnouncementDialog = false">{{ $t('upload.announcementAck') }}</el-button>
+                <el-button type="primary" @click="acknowledgeAnnouncement">{{ $t('upload.announcementAck') }}</el-button>
             </span>
         </template>
     </el-dialog>
@@ -243,7 +258,6 @@ import DirectorySuggestionInput from '@/components/DirectorySuggestionInput.vue'
 import backgroundManager from '@/mixins/backgroundManager'
 import axios from '@/utils/axios'
 import { ref } from 'vue'
-import cookies from 'vue-cookies'
 import { mapGetters } from 'vuex'
 import { validateFolderPath } from '@/utils/pathValidator'
 
@@ -268,12 +282,14 @@ export default {
             useCustomUrl: 'false', //是否启用自定义链接格式
             autoRetry: true, //失败自动切换
             useDefaultWallPaper: false,
-            isToolBarOpen: false, //是否打开工具栏
             uploadMethod: 'default', //上传方式
             uploadFolder: '', // 上传文件夹
             isFolderInputActive: false,
+            isQuickToolbarOpen: false,
+            isQuickToolbarPinned: false,
             showAnnouncementDialog: false, // 控制公告弹窗的显示
             announcementContent: '', // 公告内容
+            displayedAnnouncementRefreshAt: null, // 当前弹窗所展示的公告版本
             showHistory: false,
             themeMode: 'auto', // 主题模式：light, dark, auto
         }
@@ -377,7 +393,7 @@ export default {
     },
     mounted() {
         // 初始化背景图，启用自动创建元素
-        this.initializeBackground('uploadBkImg', '.container', false, true)
+        this.initializeBackground('uploadBkImg', '.container', true, true)
 
         // 读取用户选择的链接格式
         this.selectedUrlForm = this.uploadCopyUrlForm || 'url'
@@ -415,14 +431,7 @@ export default {
             this.themeMode = 'light'
         }
 
-        // 首次访问公告
-        const visited = localStorage.getItem('visitedUploadHome')
-        const announcement = this.userConfig?.announcement
-        if (!visited && announcement) {
-            this.announcementContent = announcement
-            this.showAnnouncementDialog = true
-            localStorage.setItem('visitedUploadHome', 'true')
-        }
+        this.showAnnouncementIfNeeded()
     },
     components: {
         UploadForm,
@@ -512,9 +521,11 @@ export default {
             this.showUrlDialog = true
         },
         handleLogout() {
-            cookies.remove('authCode')
-            this.$router.push('/login')
-            this.$message.success(this.$t('upload.logoutSuccess'))
+            axios.post('/api/auth/logout', { authType: 'user' }, { withCredentials: true }).finally(() => {
+                this.$store.commit('setUserLoggedIn', false);
+                this.$router.push('/login')
+                this.$message.success(this.$t('upload.logoutSuccess'))
+            })
         },
         changeUrlForm() {
             this.$store.commit('setUploadCopyUrlForm', this.selectedUrlForm)
@@ -531,15 +542,31 @@ export default {
         updateStoreUploadNameType(value) {
             this.$store.commit('setStoreUploadNameType', value)
         },
-        handleOpenToolbar () {
-            this.isToolBarOpen = !this.isToolBarOpen
-            // 等过渡动画结束，向active类添加pointer-events属性，使其可以点击
-            setTimeout(() => {
-                const buttons = document.querySelectorAll('.toolbar-button')
-                buttons.forEach(button => {
-                    button.style.pointerEvents = this.isToolBarOpen? 'auto' : 'none'
-                })
-            }, 300)
+        handleQuickToolbarMoreEnter() {
+            this.isQuickToolbarOpen = true
+        },
+        handleQuickToolbarLeave() {
+            if (!this.isQuickToolbarPinned) {
+                this.isQuickToolbarOpen = false
+            }
+        },
+        toggleQuickToolbar() {
+            this.isQuickToolbarPinned = !this.isQuickToolbarPinned
+            this.isQuickToolbarOpen = this.isQuickToolbarPinned
+        },
+        closeQuickToolbar() {
+            this.isQuickToolbarPinned = false
+            this.isQuickToolbarOpen = false
+        },
+        handleQuickToolbarCommand(command) {
+            this.closeQuickToolbar()
+            if (command === 'linkFormat') {
+                this.openUrlDialog()
+            } else if (command === 'manage') {
+                this.handleManage()
+            } else if (command === 'logout') {
+                this.handleLogout()
+            }
         },
         handleChangeUploadMethod() {
             this.uploadMethod = this.uploadMethod === 'default'? 'paste' : 'default'
@@ -603,11 +630,49 @@ export default {
         handleShowAnnouncement() {
             const announcement = this.userConfig?.announcement
             if (announcement) {
-                this.announcementContent = announcement
-                this.showAnnouncementDialog = true
+                this.openAnnouncement(announcement)
             } else {
                 this.$message.info(this.$t('upload.noAnnouncement'))
             }
+        },
+        getAnnouncementRefreshAt() {
+            const refreshAt = Number(this.userConfig?.announcementRefreshAt)
+            return Number.isFinite(refreshAt) && refreshAt > 0 ? refreshAt : null
+        },
+        openAnnouncement(announcement) {
+            this.announcementContent = announcement
+            this.displayedAnnouncementRefreshAt = this.getAnnouncementRefreshAt()
+            this.showAnnouncementDialog = true
+        },
+        showAnnouncementIfNeeded() {
+            const announcement = this.userConfig?.announcement
+            if (!announcement) return
+
+            const refreshAt = this.getAnnouncementRefreshAt()
+            if (refreshAt) {
+                const acknowledgedRefreshAt = Number(localStorage.getItem('announcementAcknowledgedRefreshAt'))
+                if (!Number.isFinite(acknowledgedRefreshAt) || refreshAt > acknowledgedRefreshAt) {
+                    this.openAnnouncement(announcement)
+                }
+                return
+            }
+
+            // 尚未产生刷新时间的旧公告在升级后再展示一次，确认后使用新版时间标记。
+            if (!localStorage.getItem('announcementAcknowledgedAt')) {
+                this.openAnnouncement(announcement)
+            }
+        },
+        acknowledgeAnnouncement() {
+            localStorage.setItem('announcementAcknowledgedAt', String(Date.now()))
+
+            if (this.displayedAnnouncementRefreshAt) {
+                localStorage.setItem(
+                    'announcementAcknowledgedRefreshAt',
+                    String(this.displayedAnnouncementRefreshAt)
+                )
+            }
+
+            this.showAnnouncementDialog = false
         },
         // 处理目录选择
         handleDirectorySelect(path) {
@@ -724,17 +789,22 @@ export default {
 }
 
 .toggle-dark-button {
-    border: none;
-    transition: all 0.3s ease;
-    background-color: var(--toolbar-button-bg-color);
-    box-shadow: var(--toolbar-button-shadow);
-    backdrop-filter: blur(10px);
+    width: 2.5rem;
+    height: 2.5rem;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 1px solid var(--glass-border);
+    transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+    background-color: var(--glass-bg);
+    box-shadow: none;
     border-radius: 12px;
     position: fixed;
     top: 30px;
     right: 80px;
+    padding: 0;
 }
-
 .more-dropdown {
     position: fixed;
     top: 30px;
@@ -744,14 +814,14 @@ export default {
 .more-dropdown .more-button {
     width: 2.5rem;
     height: 2.5rem;
+    box-sizing: border-box;
     display: flex;
     justify-content: center;
     align-items: center;
-    border: none;
-    transition: all 0.3s ease;
-    background-color: var(--toolbar-button-bg-color);
-    box-shadow: var(--toolbar-button-shadow);
-    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+    background-color: var(--glass-bg);
+    box-shadow: none;
     color: var(--theme-toggle-color);
     border-radius: 12px;
     outline: none;
@@ -759,26 +829,27 @@ export default {
 }
 .more-dropdown .more-button:hover {
     transform: scale(1.05);
-    box-shadow: var(--toolbar-button-shadow-hover);
+    border-color: var(--glass-border-hover);
 }
 
 .upload-method-button {
     width: 2.5rem;
     height: 2.5rem;
+    box-sizing: border-box;
     display: flex;
     justify-content: center;
     align-items: center;
-    border: none;
-    transition: all 0.3s ease;
-    background-color: var(--toolbar-button-bg-color);
-    box-shadow: var(--toolbar-button-shadow);
-    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+    background-color: var(--glass-bg);
+    box-shadow: none;
     color: var(--theme-toggle-color);
     border-radius: 12px;
     position: fixed;
     top: 30px;
     right: 130px;
     outline: none;
+    padding: 0;
 }
 @media (max-width: 768px) {
     .upload-method-button {
@@ -789,12 +860,20 @@ export default {
 .upload-method-icon {
     outline: none;
 }
+/* 右上角工具按钮内的图标统一尺寸(与 ToggleDark 的 1.5em 对齐) */
+.more-button .svg-inline--fa,
+.upload-method-button .svg-inline--fa {
+    font-size: 1.5em;
+}
+.directory-tree-trigger .svg-inline--fa {
+    font-size: 1.2em;
+}
 
 /* 移动端更多按钮 */
 .mobile-more-dropdown {
     position: fixed;
     top: 30px;
-    right: 30px;
+    right: 18px;
     z-index: 100;
 }
 .mobile-more-button {
@@ -803,11 +882,10 @@ export default {
     display: flex;
     justify-content: center;
     align-items: center;
-    border: none;
-    transition: all 0.3s ease;
-    background-color: var(--toolbar-button-bg-color);
-    box-shadow: var(--toolbar-button-shadow);
-    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
+    background-color: var(--glass-bg);
+    box-shadow: none;
     color: var(--theme-toggle-color);
     border-radius: 12px;
     outline: none;
@@ -815,7 +893,7 @@ export default {
 }
 .mobile-more-button:hover {
     transform: scale(1.05);
-    box-shadow: var(--toolbar-button-shadow-hover);
+    border-color: var(--glass-border-hover);
 }
 
 /* 上传文件输入框容器样式 */
@@ -832,10 +910,10 @@ export default {
 }
 @media (max-width: 768px) {
     .upload-folder-container {
-        right: 70px;
+        right: 58px;
     }
     .upload-folder-container.no-announcement {
-        right: 70px;
+        right: 58px;
     }
 }
 
@@ -844,6 +922,9 @@ export default {
     width: 100px;
     height: 2.5rem;
     border-radius: 12px;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
     transition: all 0.3s ease, width 0.4s ease;
 }
 .upload-folder.active {
@@ -866,24 +947,28 @@ export default {
     display: flex;
     justify-content: center;
     align-items: center;
-    border: none;
+    box-sizing: border-box;
+    border: 1px solid var(--glass-border);
     margin-left: 10px;
-    transition: all 0.3s ease;
-    background-color: var(--toolbar-button-bg-color);
-    box-shadow: var(--toolbar-button-shadow);
-    backdrop-filter: blur(10px);
+    background-color: var(--glass-bg);
+    box-shadow: var(--glass-shadow);
     color: var(--theme-toggle-color);
     border-radius: 12px;
     outline: none;
+    cursor: pointer;
+    transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
 }
 .directory-tree-trigger:hover {
+    border-color: var(--glass-border-hover);
     transform: scale(1.05);
-    box-shadow: var(--toolbar-button-shadow-hover);
 }
 @media (max-width: 768px) {
     .directory-tree-trigger {
         width: 2rem;
         height: 2rem;
+    }
+    .directory-tree-trigger .svg-inline--fa {
+        font-size: 1.1em;
     }
 }
 
@@ -894,158 +979,186 @@ export default {
 
 .upload-folder :deep(.el-input) {
     height: 100%;
+    box-sizing: border-box;
 }
 
 .upload-folder :deep(.el-input__wrapper) {
     border-radius: 12px;
-    background-color: var(--toolbar-button-bg-color);
-    box-shadow: var(--toolbar-button-shadow);
-    backdrop-filter: blur(10px);
-    border: none;
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    box-shadow: var(--glass-shadow);
+    border: 1px solid var(--glass-border);
     height: 100%;
+    padding: 0 10px;
+    box-sizing: border-box;
+    transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease !important;
+}
+.upload-folder :deep(.el-input__wrapper:hover) {
+    background-color: color-mix(in srgb, var(--el-fill-color-blank) 85%, transparent);
+    border-color: var(--glass-border-hover);
+}
+html.dark .upload-folder :deep(.el-input__wrapper:hover) {
+    background-color: color-mix(in srgb, var(--el-bg-color) 88%, transparent);
+    border-color: var(--glass-border-hover);
 }
 
-.toolbar-manage {
+.upload-folder :deep(.el-input__wrapper.is-focus),
+.upload-folder :deep(.el-input__wrapper:focus-within) {
+    border-color: var(--glass-border);
+    box-shadow: var(--glass-shadow) !important;
+}
+
+.quick-toolbar {
+    --quick-toolbar-size: 2.5rem;
+    --quick-toolbar-button-size: calc(var(--quick-toolbar-size) - 6px);
+
     position: fixed;
     bottom: 50px;
     right: 30px;
-    z-index: 200;
-}
-.toolbar-manage-button {
-    border: none;
-    transition: all 0.3s ease, border-radius 0.4s ease;
-    margin-left: 0;
-    background-color: var(--toolbar-button-bg-color);
-    box-shadow: var(--toolbar-button-shadow);
-    backdrop-filter: blur(10px);
-    color: var(--toolbar-button-color);
-    outline: none;
-    border-radius: 12px;
-}
-.toolbar-manage-button.active {
-    border-radius: 50%;
-}
-
-.toolbar {
-    position: fixed;
-    bottom: 50px;
-    right: 30px;
+    width: var(--quick-toolbar-size);
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;
-    z-index: 100;
+    gap: 0;
+    z-index: 200;
+    padding: 3px;
+    border-radius: 999px;
+    border: 1px solid var(--glass-border);
+    background-color: var(--glass-bg);
+    box-shadow: none;
+    transition: background-color 0.24s ease, border-color 0.24s ease;
+}
+.toggle-dark-button,
+.more-dropdown .more-button,
+.upload-method-button,
+.mobile-more-button,
+.directory-tree-trigger,
+.quick-toolbar {
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
 }
 
-.toolbar-button {
+.quick-toolbar-button {
+    width: var(--quick-toolbar-button-size);
+    height: var(--quick-toolbar-button-size);
     border: none;
-    transition: all 0.3s ease;
+    transition: transform 0.22s ease, background-color 0.22s ease, box-shadow 0.22s ease, color 0.22s ease;
     margin-left: 0;
-    background-color: var(--toolbar-button-bg-color);
-    box-shadow: var(--toolbar-button-shadow);
-    backdrop-filter: blur(10px);
+    padding: 0;
+    border-radius: 999px;
+    background-color: transparent;
+    box-shadow: none;
     color: var(--toolbar-button-color);
+    outline: none;
+}
+.quick-toolbar-actions {
+    display: grid;
+    grid-template-rows: 0fr;
+    width: 100%;
+    margin-bottom: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(12px);
+    transform-origin: bottom center;
+    transition:
+        grid-template-rows 0.52s cubic-bezier(0.16, 1, 0.3, 1),
+        margin-bottom 0.52s cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 0.32s ease,
+        transform 0.52s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.quick-toolbar.is-expanded .quick-toolbar-actions {
+    grid-template-rows: 1fr;
+    margin-bottom: 4px;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+.quick-toolbar-actions-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    min-height: 0;
+    overflow: hidden;
+}
+.quick-toolbar-more.is-active {
+    background-color: var(--upload-action-btn-hover-bg);
+    box-shadow: var(--upload-action-btn-shadow);
+}
+.quick-toolbar-more {
+    margin-top: 4px;
+}
+.quick-toolbar-icon {
+    font-size: 16px;
+}
+.quick-toolbar-toggle-icon {
+    transform: rotate(180deg);
+    transition: transform 0.32s ease;
+}
+.quick-toolbar-more.is-active .quick-toolbar-toggle-icon {
+    transform: rotate(0deg);
 }
 
 /* 按钮悬停效果 */
-.toggle-dark-button:hover,
 .info-container:hover,
-.upload-method-button:hover,
-.toolbar-manage-button:hover,
-.toolbar-button:hover {
+.quick-toolbar-button:hover {
     transform: scale(1.05);
-    box-shadow: var(--toolbar-button-shadow-hover);
+    background-color: var(--upload-action-btn-hover-bg);
+    box-shadow: var(--upload-action-btn-hover-shadow);
 }
-.upload-folder:hover {
-    box-shadow: var(--toolbar-button-shadow-hover);
+.quick-toolbar:hover {
+    border-color: var(--glass-border-hover);
 }
-
-/* 按钮形成扇形 */
-.compress-button {
-    position: fixed;
-    bottom: 50px;
-    right: 30px;
-    opacity: 0;
-    transition: all 0.3s ease, transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-    pointer-events: none;
+.quick-toolbar-button:hover {
+    transform: none;
 }
-.compress-button.active {
-    transform: translateY(-75px);
-    opacity: 1;
+.toggle-dark-button:hover,
+.upload-method-button:hover {
+    transform: scale(1.05);
+    border-color: var(--glass-border-hover);
 }
-
-.link-button {
-    position: fixed;
-    bottom: 50px;
-    right: 30px;
-    opacity: 0;
-    transition: all 0.3s ease, transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-    pointer-events: none;
+.upload-folder:hover :deep(.el-input__wrapper) {
+    background-color: color-mix(in srgb, var(--el-fill-color-blank) 85%, transparent);
+    border-color: var(--glass-border-hover);
 }
-.link-button.active {
-    transform: translateY(-58px) translateX(-50px);
-    opacity: 1;
+html.dark .upload-folder:hover :deep(.el-input__wrapper) {
+    background-color: color-mix(in srgb, var(--el-bg-color) 88%, transparent);
+    border-color: var(--glass-border-hover);
 }
 
-.config-button {
-    position: fixed;
-    bottom: 50px;
-    right: 30px;
-    opacity: 0;
-    transition: all 0.3s ease, transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-    pointer-events: none;
-}
-.config-button.active {
-    transform: translateY(-11px) translateX(-75px);
-    opacity: 1;
-}
+@media (max-width: 768px) {
+    .quick-toolbar {
+        --quick-toolbar-size: 2rem;
+        --quick-toolbar-button-size: calc(var(--quick-toolbar-size) - 4px);
 
-.sign-out-button {
-    position: fixed;
-    bottom: 50px;
-    right: 30px;
-    opacity: 0;
-    transition: all 0.3s ease, transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
-    pointer-events: none;
-}
-.sign-out-button.active {
-    transform: translateY(42px) translateX(-68px);
-    opacity: 1;
-}
-
-/* 非移动端时的图标动画样式 */
-@media (min-width: 768px) {
-    .compress-button:hover {
-        transform: translateY(-77px);
+        right: 18px;
+        bottom: max(72px, calc(6vh + 20px + env(safe-area-inset-bottom)));
+        padding: 2px;
     }
-    .link-button:hover {
-        transform: translateY(-60px) translateX(-52px);
+    .quick-toolbar-actions {
+        margin-bottom: 0;
     }
-    .config-button:hover {
-        transform: translateY(-12px) translateX(-77px);
+    .quick-toolbar.is-expanded .quick-toolbar-actions {
+        margin-bottom: 3px;
     }
-    .sign-out-button:hover {
-        transform: translateY(44px) translateX(-70px);
+    .quick-toolbar-actions-inner {
+        gap: 2px;
     }
-
-    .compress-icon:hover {
-        animation: scale 0.5s ease-in-out;
+    .quick-toolbar-more {
+        margin-top: 3px;
     }
-    .config-icon:hover {
-        animation: spin 0.5s ease-in-out;
-    }
-    .link-icon:hover {
-        animation: rotate-shake 0.5s ease-in-out;
-    }
-    .sign-out-icon:hover {
-        animation: shake 0.5s ease-in-out;
+    .quick-toolbar-icon {
+        font-size: 14px;
     }
 }
 
 
 :deep(.el-dialog) {
     border-radius: 12px;
+    border: 1px solid var(--glass-border);
     background-color: var(--dialog-bg-color);
-    backdrop-filter: blur(10px);
     box-shadow: var(--dialog-box-shadow);
 }
 .dialog-action {
@@ -1069,19 +1182,21 @@ export default {
     transition: all 0.3s ease;
 }
 .title {
-    font-size: 2.5rem;
+    font-size: 2.25rem;
     font-weight: 400;
-    font-family: 'Righteous', 'Noto Sans SC', sans-serif;
+    font-family: 'Pacifico', 'Noto Sans SC', sans-serif;
+    color: var(--upload-title-text-color);
+    text-shadow: var(--upload-title-text-shadow);
     position: relative;
     padding-bottom: 8px;
     cursor: pointer;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), filter 0.25s ease;
     animation: float 4s ease-in-out infinite;
     letter-spacing: 3px;
 }
 .title:hover {
-    transform: scale(1.08) translateY(-3px);
-    filter: drop-shadow(0 0 20px var(--el-upload-dragger-uniform-color));
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 20px var(--upload-title-hover-glow));
 }
 .title::after {
     content: '';
@@ -1091,38 +1206,62 @@ export default {
     transform: translateX(-50%);
     width: 0;
     height: 3px;
-    background: linear-gradient(90deg, 
-        transparent, 
-        var(--el-upload-dragger-uniform-color), 
-        transparent);
+    background: var(--upload-title-underline-bg);
     border-radius: 3px;
     transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 0 10px var(--el-upload-dragger-uniform-color);
+    box-shadow: var(--upload-title-underline-shadow);
 }
 .title:hover::after {
     width: 80%;
 }
 
-/* 动态流光标题 */
 .main-title {
-    background: var(--upload-main-title-color);
-    background-size: 200% auto;
-    background-clip: text;
-    -webkit-background-clip: text;
-    color: transparent;
+    color: var(--upload-main-title-color);
     text-decoration: none;
     display: inline-block;
-    animation: titleShimmer 3s ease-in-out infinite;
     position: relative;
     filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.3));
+    transition: opacity 0.16s ease;
 }
-
-
 
 .title:hover .main-title {
-    animation: titleShimmer 1s ease-in-out infinite;
-    filter: brightness(1.2);
+    opacity: 0;
 }
+
+.title:hover {
+    color: transparent;
+    text-shadow: none;
+}
+
+.title-crayon-text {
+    position: absolute;
+    left: 50%;
+    top: -1px;
+    z-index: 2;
+    width: max-content;
+    pointer-events: none;
+    white-space: nowrap;
+    color: var(--upload-title-crayon-deep, #1D2129);
+    opacity: 0;
+    -webkit-text-stroke: 0.35px var(--upload-title-crayon-edge);
+    text-shadow:
+        -1.2px 0.4px 0 var(--upload-title-crayon-burr),
+        0.9px -0.7px 0 rgba(255, 255, 255, 0.24),
+        1.5px 0.5px 0 var(--upload-title-crayon-dust),
+        -1.7px -0.6px 0 var(--upload-title-crayon-dust);
+    transform: translateX(-50%) rotate(-0.8deg);
+    transform-origin: left 68%;
+    clip-path: inset(-10px 100% -10px -10px);
+    filter: saturate(1.08) contrast(1.06);
+}
+
+.title:hover .title-crayon-text {
+    animation:
+        crayonWrite 0.82s steps(18, end) forwards,
+        crayonScratch 0.16s steps(2, end) 0.82s 3;
+}
+
+
 
 /* 漂浮动画 */
 @keyframes float {
@@ -1134,23 +1273,48 @@ export default {
     }
 }
 
-/* 标题流光动画 */
-@keyframes titleShimmer {
+@keyframes crayonWrite {
     0% {
-        background-position: 200% center;
+        opacity: 0;
+        clip-path: inset(-10px 100% -10px -10px);
+    }
+    12% {
+        opacity: 0.92;
+    }
+    32% {
+        clip-path: inset(-10px 68% -10px -10px);
+    }
+    47% {
+        clip-path: inset(-10px 52% -10px -10px);
+    }
+    63% {
+        clip-path: inset(-10px 34% -10px -10px);
+    }
+    78% {
+        clip-path: inset(-10px 18% -10px -10px);
     }
     100% {
-        background-position: -200% center;
+        opacity: 0.92;
+        clip-path: inset(-10px -10px -10px -10px);
+    }
+}
+
+@keyframes crayonScratch {
+    0%, 100% {
+        transform: translateX(-50%) rotate(-0.8deg);
+    }
+    50% {
+        transform: translateX(calc(-50% + 1px)) rotate(-0.45deg);
     }
 }
 
 @media (max-width: 768px) {
     .title {
-        font-size: 1.8rem;
-        letter-spacing: 1px;
+        font-size: 1.4rem;
+        letter-spacing: 0.75px;
     }
     .title:hover {
-        transform: scale(1.05) translateY(-2px);
+        transform: scale(1.05);
     }
 }
 
@@ -1160,12 +1324,27 @@ export default {
     justify-content: center;
     align-items: center;
     min-height: 94vh;
-    background-color: var(--admin-container-bg-color);
+    background-color: transparent;
 }
 .upload {
     margin-bottom: 5px;
     position: relative;
     top: -3vh;
+}
+
+@media (max-width: 768px) {
+    .header {
+        padding: 5px 15px 2px;
+        top: -2.5vh;
+    }
+    .title {
+        margin: 0.4em 0;
+        padding-bottom: 3px;
+        line-height: 1.2;
+    }
+    .upload {
+        top: -3.8vh;
+    }
 }
 
 .footer {

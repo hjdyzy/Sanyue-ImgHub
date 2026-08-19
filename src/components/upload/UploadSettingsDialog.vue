@@ -1,35 +1,28 @@
 <template>
-    <el-dialog :title="$t('uploadSettings.title')" v-model="visible" :width="dialogWidth" :show-close="false" class="settings-dialog">
+    <el-dialog :title="$t('uploadSettings.title')" v-model="visible" :width="dialogWidth" :show-close="false" class="settings-dialog settings-dialog-scope upload-settings-dialog">
         <!-- 上传渠道 -->
         <div class="dialog-section">
             <div class="section-header">
                 <span class="section-title">{{ $t('uploadSettings.uploadChannel') }}</span>
             </div>
             <div class="section-content">
-                <div class="setting-item">
-                    <span class="setting-label">{{ $t('uploadSettings.channelType') }}</span>
+                <div class="setting-item channel-type-setting">
+                    <div class="channel-type-toolbar">
+                        <span class="setting-label">{{ $t('uploadSettings.channelType') }}</span>
+                        <el-radio-group v-model="channelVisibility" size="small" class="channel-visibility-filter" @change="handleChannelVisibilityChange">
+                            <el-radio-button label="all">{{ $t('uploadSettings.allChannels') }}</el-radio-button>
+                            <el-radio-button label="configured">{{ $t('uploadSettings.configuredChannelsOnly') }}</el-radio-button>
+                        </el-radio-group>
+                    </div>
                     <el-radio-group :model-value="uploadChannel" @update:model-value="$emit('update:uploadChannel', $event)" class="radio-card-group compact">
-                        <el-radio label="telegram" class="radio-card">
-                            <font-awesome-icon icon="paper-plane" class="channel-icon"/>
-                            <span>TG</span>
-                        </el-radio>
-                        <el-radio label="cfr2" class="radio-card">
-                            <font-awesome-icon icon="cloud" class="channel-icon"/>
-                            <span>R2</span>
-                        </el-radio>
-                        <el-radio label="s3" class="radio-card">
-                            <font-awesome-icon icon="database" class="channel-icon"/>
-                            <span>S3</span>
-                        </el-radio>
-                        <el-radio label="discord" class="radio-card">
-                            <font-awesome-icon icon="comments" class="channel-icon"/>
-                            <span>DC</span>
-                        </el-radio>
-                        <el-radio label="huggingface" class="radio-card">
-                            <font-awesome-icon icon="robot" class="channel-icon"/>
-                            <span>HF</span>
+                        <el-radio v-for="channel in visibleChannelOptions" :key="channel.value" :label="channel.value" class="radio-card">
+                            <ChannelIcon :type="channel.value" class="channel-icon"/>
+                            <span>{{ channel.label }}</span>
                         </el-radio>
                     </el-radio-group>
+                    <div v-if="channelVisibility === 'configured' && visibleChannelOptions.length === 0" class="channel-empty-state">
+                        {{ $t('uploadSettings.noConfiguredChannels') }}
+                    </div>
                 </div>
                 <div class="setting-item" v-if="currentChannelList.length > 1">
                     <span class="setting-label">
@@ -168,10 +161,49 @@
 </template>
 
 <script>
+import ChannelIcon from '@/components/icons/ChannelIcon.vue';
+
+const CHANNEL_OPTIONS = [
+    { value: 'telegram', label: 'TG' },
+    { value: 'cfr2', label: 'R2' },
+    { value: 's3', label: 'S3' },
+    { value: 'discord', label: 'DC' },
+    { value: 'huggingface', label: 'HF' },
+    { value: 'webdav', label: 'WD' }
+]
 
 export default {
     name: 'UploadSettingsDialog',
+    components: {
+        ChannelIcon
+    },
+    data() {
+        return {
+            channelVisibility: 'configured'
+        }
+    },
     methods: {
+        hasConfiguredChannels(channelType) {
+            const channels = this.availableChannels[channelType]
+            return Array.isArray(channels) && channels.length > 0
+        },
+        handleChannelVisibilityChange(visibility) {
+            if (visibility !== 'configured') {
+                return
+            }
+
+            this.ensureConfiguredChannelSelected()
+        },
+        ensureConfiguredChannelSelected() {
+            if (this.channelVisibility !== 'configured' || this.hasConfiguredChannels(this.uploadChannel)) {
+                return
+            }
+
+            const firstConfiguredChannel = this.visibleChannelOptions[0]
+            if (firstConfiguredChannel) {
+                this.$emit('update:uploadChannel', firstConfiguredChannel.value)
+            }
+        },
         handleUploadFolderInput(val) {
             // 自动补全前导 /
             if (val && !val.startsWith('/')) {
@@ -184,6 +216,7 @@ export default {
         modelValue: { type: Boolean, default: false },
         uploadChannel: { type: String, default: 'telegram' },
         channelName: { type: String, default: '' },
+        availableChannels: { type: Object, default: () => ({}) },
         currentChannelList: { type: Array, default: () => [] },
         uploadFolder: { type: String, default: '' },
         autoRetry: { type: Boolean, default: true },
@@ -207,10 +240,25 @@ export default {
         'update:compressQuality',
         'update:serverCompress'
     ],
+    watch: {
+        availableChannels: {
+            handler() {
+                this.ensureConfiguredChannelSelected()
+            },
+            deep: true
+        }
+    },
     computed: {
         visible: {
             get() { return this.modelValue },
             set(val) { this.$emit('update:modelValue', val) }
+        },
+        visibleChannelOptions() {
+            if (this.channelVisibility === 'all') {
+                return CHANNEL_OPTIONS
+            }
+
+            return CHANNEL_OPTIONS.filter(channel => this.hasConfiguredChannels(channel.value))
         },
         dialogWidth() {
             return window.innerWidth > 768 ? '50%' : '90%'
@@ -218,3 +266,150 @@ export default {
     }
 }
 </script>
+
+<style src="@/styles/settings-dialog.css"></style>
+<style scoped>
+.channel-type-setting {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+}
+
+.channel-type-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+}
+
+.channel-visibility-filter {
+    flex-shrink: 0;
+}
+
+.channel-visibility-filter :deep(.el-radio-button__inner) {
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+.channel-empty-state {
+    width: 100%;
+    padding: 12px;
+    box-sizing: border-box;
+    border: 1px dashed var(--el-border-color);
+    border-radius: 8px;
+    color: var(--el-text-color-secondary);
+    font-size: 13px;
+    text-align: center;
+}
+
+.radio-card-group.compact {
+    gap: 8px;
+    width: 100%;
+}
+
+.radio-card-group.compact .radio-card {
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+.radio-card-group.compact .radio-card :deep(.el-radio__label) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.radio-card-group.compact .channel-icon {
+    width: 18px;
+    font-size: 18px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.slider-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.slider-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.slider-wrapper .el-slider {
+    flex: 1;
+    min-width: 0;
+}
+
+.slider-input {
+    width: 96px !important;
+    flex-shrink: 0;
+}
+
+.slider-input :deep(.el-input__inner) {
+    text-align: center;
+}
+
+.slider-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.slider-unit {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--el-text-color-secondary);
+}
+
+@media (max-width: 768px) {
+    .channel-type-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .channel-visibility-filter {
+        display: flex;
+        width: 100%;
+    }
+
+    .channel-visibility-filter .el-radio-button {
+        flex: 1;
+    }
+
+    .channel-visibility-filter :deep(.el-radio-button__inner) {
+        width: 100%;
+    }
+
+    .setting-item .radio-card-group.compact {
+        width: 100%;
+    }
+
+    .radio-card-group.compact {
+        flex-direction: row;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        width: 100%;
+    }
+
+    .radio-card-group.compact .radio-card {
+        width: 100%;
+        box-sizing: border-box;
+        justify-content: center;
+        flex: 1;
+    }
+
+    .radio-card-group.compact .radio-card :deep(.el-radio__label) {
+        justify-content: center;
+    }
+
+    .slider-wrapper {
+        gap: 8px;
+    }
+}
+</style>

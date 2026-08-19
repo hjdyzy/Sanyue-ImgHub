@@ -4,6 +4,7 @@
             class="upload-card-wrapper"
             @mousemove="handleUploadCardMouseMove"
             @mouseleave="handleUploadCardMouseLeave"
+            @drop.capture.stop.prevent="handleDrop"
         >
             <div class="upload-card-glow" ref="uploadCardGlow"></div>
             <el-upload
@@ -21,10 +22,35 @@
                 :show-file-list="false"
                 >
                 <el-icon class="el-icon--upload" :class="{'upload-list-busy': fileList.length}">
-                    <CameraFilled/>
+                    <svg class="upload-plus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" aria-hidden="true">
+                        <path d="M12 7v10"/>
+                        <path d="M7 12h10"/>
+                    </svg>
                 </el-icon>
-                <div class="el-upload__text" :class="{'upload-list-busy': fileList.length}" v-html="$t('upload.dragUploadText')"></div>
+                <div class="upload-prompt-row">
+                    <div class="el-upload__text" :class="{'upload-list-busy': fileList.length}" v-html="$t('upload.dragUploadText')"></div>
+                    <el-tooltip :disabled="disableTooltip" :content="$t('upload.selectFolderUpload')" placement="top" :show-after="1000">
+                        <button
+                            type="button"
+                            class="folder-upload-icon-button"
+                            :class="{'upload-list-busy': fileList.length}"
+                            :aria-label="$t('upload.selectFolderUpload')"
+                            @click.stop.prevent="openFolderPicker"
+                        >
+                            <font-awesome-icon icon="folder-open" />
+                        </button>
+                    </el-tooltip>
+                </div>
             </el-upload>
+            <input
+                ref="folderInput"
+                class="folder-upload-input"
+                type="file"
+                webkitdirectory
+                directory
+                multiple
+                @change="handleFolderSelection"
+            />
         </div>
         <div v-if="uploadMethod === 'paste'" class="upload-card">
             <el-card 
@@ -47,19 +73,36 @@
                     >
                         {{ $t('upload.pasteUploadBtn') }}
                     </el-button>
-                    <el-radio-group 
-                        v-model="pasteUploadMethod" 
+                    <div
                         class="paste-card-method-group"
-                        :size="pasteCardMethodButtonSize"
+                        :class="{ 'is-external': pasteUploadMethod === 'external' }"
+                        role="group"
+                        :aria-label="$t('upload.switchUploadMethod')"
                     >
-                        <el-radio-button label="save">{{ $t('upload.pasteSave') }}</el-radio-button>
-                        <el-radio-button label="external">{{ $t('upload.pasteExternal') }}</el-radio-button>
-                    </el-radio-group>
+                        <button
+                            class="paste-card-method-button"
+                            :class="{ 'is-active': pasteUploadMethod === 'save' }"
+                            type="button"
+                            :aria-pressed="pasteUploadMethod === 'save'"
+                            @click="pasteUploadMethod = 'save'"
+                        >
+                            {{ $t('upload.pasteSave') }}
+                        </button>
+                        <button
+                            class="paste-card-method-button"
+                            :class="{ 'is-active': pasteUploadMethod === 'external' }"
+                            type="button"
+                            :aria-pressed="pasteUploadMethod === 'external'"
+                            @click="pasteUploadMethod = 'external'"
+                        >
+                            {{ $t('upload.pasteExternal') }}
+                        </button>
+                    </div>
                 </div>
             </el-card>
         </div>
-        <el-card class="upload-list-card" :class="{'upload-list-busy': fileList.length, 'is-uploading': uploading}">
-            <div class="upload-list-container" :class="{'upload-list-busy': fileList.length}">
+        <el-card class="upload-list-card" :class="{'upload-list-busy': fileList.length}">
+            <div class="upload-list-container">
                 <el-scrollbar @scroll="handleScroll" ref="scrollContainer">
                     <div class="upload-list-dashboard" :class="{ 'list-scrolled': listScrolled }">
                         <el-text class="upload-list-dashboard-title">
@@ -69,14 +112,14 @@
                         </el-text>
                         <div class="upload-list-dashboard-action">
                             <div class="modern-action-group">
-                                <el-tooltip :disabled="disableTooltip" :content="$t('upload.copyAll')" placement="top">
-                                    <button class="modern-action-btn" @click="copyAll">
+                                <el-tooltip :disabled="disableTooltip" :content="$t('upload.copyAll')" placement="top" :show-after="1000">
+                                    <button class="modern-action-btn modern-action-btn-copy" @click="copyAll">
                                         <font-awesome-icon icon="copy" />
                                     </button>
                                 </el-tooltip>
-                                <el-tooltip :disabled="disableTooltip" :content="$t('upload.retryFailed')" placement="top">
+                                <el-tooltip :disabled="disableTooltip" :content="$t('upload.retryFailed')" placement="top" :show-after="1000">
                                     <el-dropdown>
-                                        <button class="modern-action-btn" @click="retryError">
+                                        <button class="modern-action-btn modern-action-btn-retry" @click="retryError">
                                             <font-awesome-icon icon="redo" />
                                         </button>
                                         <template #dropdown>
@@ -91,7 +134,7 @@
                                         </template>
                                     </el-dropdown>
                                 </el-tooltip>
-                                <el-tooltip :disabled="disableTooltip" :content="$t('upload.clearList')" placement="top">
+                                <el-tooltip :disabled="disableTooltip" :content="$t('upload.clearList')" placement="top" :show-after="1000">
                                     <el-dropdown>
                                         <button class="modern-action-btn modern-action-btn-danger">
                                             <font-awesome-icon icon="trash-alt" />
@@ -109,7 +152,7 @@
                     </div>
                     <UploadFileItem
                         v-for="file in fileList.slice().reverse()"
-                        :key="file.name"
+                        :key="file.uid"
                         :file="file"
                         @copy="handleCopy"
                         @remove="handleRemove"
@@ -127,6 +170,12 @@ import * as imageConversion from 'image-conversion'
 import { mapGetters } from 'vuex'
 import { buildFileUrls, updateFileListUrls, getUrlByFormat } from '@/utils/upload/urlBuilder'
 import { computeSha256 } from '@/utils/upload/sha256'
+import {
+    collectFilesFromDataTransferItems,
+    filesToUploadEntries,
+    getRelativeDirectory,
+    joinUploadFolder
+} from '@/utils/upload/directoryTraversal'
 import UploadFileItem from '@/components/upload/UploadFileItem.vue'
 
 export default {
@@ -219,7 +268,7 @@ data() {
         exceptionList: [],
         listScrolled: false,
         fileListLength: 0,
-        uploadCount: 0,
+        localUidCounter: 0,
         pastedUrls: '',
         pasteUploadMethod: 'save',
         // 失败文件自动重试相关
@@ -317,6 +366,61 @@ beforeUnmount() {
     this.activeUploads = 0
 },
 methods: {
+    createLocalUid() {
+        this.localUidCounter += 1
+        return `local-${Date.now()}-${this.localUidCounter}`
+    },
+    applyUploadPath(file, relativePath = file.name) {
+        const normalizedRelativePath = String(relativePath || file.name).replace(/\\/g, '/').replace(/^\/+/, '')
+        file.uploadRelativePath = normalizedRelativePath
+        file.uploadFolder = joinUploadFolder(this.uploadFolder, getRelativeDirectory(normalizedRelativePath))
+        return file
+    },
+    copyUploadPath(sourceFile, targetFile) {
+        targetFile.uploadRelativePath = sourceFile.uploadRelativePath || sourceFile.name
+        targetFile.uploadFolder = sourceFile.uploadFolder ?? this.uploadFolder
+        return targetFile
+    },
+    getFileUploadFolder(file) {
+        const fileItem = this.fileList.find(item => item.uid === file.file.uid)
+        return fileItem?.uploadFolder ?? file.file.uploadFolder ?? this.uploadFolder
+    },
+    createUploadRequest(file) {
+        return {
+            file,
+            onProgress: (evt) => this.handleProgress(evt),
+            onSuccess: (response, uploadedFile) => this.handleSuccess(response, uploadedFile),
+            onError: (error, uploadedFile) => this.handleError(error, uploadedFile)
+        }
+    },
+    async uploadLocalEntries(entries) {
+        await Promise.allSettled(entries.map(async ({ file, relativePath }) => {
+            file.uid = this.createLocalUid()
+            this.applyUploadPath(file, relativePath)
+            const processedFile = await this.beforeUpload(file)
+            if (processedFile instanceof File) {
+                this.uploadFile(this.createUploadRequest(processedFile))
+            }
+        }))
+    },
+    openFolderPicker() {
+        this.$refs.folderInput?.click()
+    },
+    async handleFolderSelection(event) {
+        const entries = filesToUploadEntries(event.target.files)
+        event.target.value = ''
+        await this.uploadLocalEntries(entries)
+    },
+    async handleDrop(event) {
+        const dataTransfer = event.dataTransfer
+        if (!dataTransfer) return
+
+        const entries = dataTransfer.items?.length
+            ? await collectFilesFromDataTransferItems(dataTransfer.items)
+            : filesToUploadEntries(dataTransfer.files)
+
+        if (entries.length) await this.uploadLocalEntries(entries)
+    },
     // 文件名中间截断，保留前缀和扩展名
     truncateFilename(filename, maxLength = 20) {
         if (!filename || filename.length <= maxLength) {
@@ -436,6 +540,7 @@ methods: {
         const uploadChannel = fileItem.uploadChannel || this.uploadChannel
         const autoRetry = this.autoRetry && uploadChannel !== 'external'
         const uploadNameType = uploadChannel === 'external' ? 'default' : this.uploadNameType
+        const targetUploadFolder = this.getFileUploadFolder(file)
         
         // 创建 AbortController 用于取消上传
         const abortController = new AbortController()
@@ -467,7 +572,7 @@ methods: {
                 (this.channelName ? '&channelName=' + encodeURIComponent(this.channelName) : '') +
                 '&uploadNameType=' + uploadNameType + 
                 '&autoRetry=' + autoRetry + 
-                '&uploadFolder=' + encodeURIComponent(this.uploadFolder),
+                '&uploadFolder=' + encodeURIComponent(targetUploadFolder),
             method: 'post',
             data: formData,
             withAuthCode: true,
@@ -518,11 +623,13 @@ methods: {
             : 16 * 1024 * 1024 // 16MB for Telegram and others (TG getFile limit: 20MB)
         
         const fileSize = file.file.size
+        const fileType = file.file.type || 'application/octet-stream'
         const totalChunks = Math.ceil(fileSize / CHUNK_SIZE)
         
         const needServerCompress = fileItem.serverCompress
         const autoRetry = this.autoRetry && uploadChannel !== 'external'
         const uploadNameType = uploadChannel === 'external' ? 'default' : this.uploadNameType
+        const targetUploadFolder = this.getFileUploadFolder(file)
 
         // HuggingFace 渠道：在前端预计算 SHA256
         let precomputedSha256 = null
@@ -540,7 +647,7 @@ methods: {
             // 第一步：初始化分块上传，获取uploadId
             const initFormData = new FormData()
             initFormData.append('originalFileName', file.file.name)
-            initFormData.append('originalFileType', file.file.type)
+            initFormData.append('originalFileType', fileType)
             initFormData.append('totalChunks', totalChunks.toString())
 
             const initResponse = await axios({
@@ -550,7 +657,7 @@ methods: {
                     (this.channelName ? '&channelName=' + encodeURIComponent(this.channelName) : '') +
                     '&uploadNameType=' + uploadNameType + 
                     '&autoRetry=' + autoRetry + 
-                    '&uploadFolder=' + encodeURIComponent(this.uploadFolder) +
+                    '&uploadFolder=' + encodeURIComponent(targetUploadFolder) +
                     '&initChunked=true',
                 method: 'post',
                 data: initFormData,
@@ -592,7 +699,7 @@ methods: {
                 formData.append('totalChunks', totalChunks.toString())
                 formData.append('uploadId', uploadId)
                 formData.append('originalFileName', file.file.name)
-                formData.append('originalFileType', file.file.type)
+                formData.append('originalFileType', fileType)
 
                 let retryCount = 0
                 const maxRetries = 3
@@ -607,7 +714,7 @@ methods: {
                                 (this.channelName ? '&channelName=' + encodeURIComponent(this.channelName) : '') +
                                 '&uploadNameType=' + uploadNameType + 
                                 '&autoRetry=' + autoRetry + 
-                                '&uploadFolder=' + encodeURIComponent(this.uploadFolder) +
+                                '&uploadFolder=' + encodeURIComponent(targetUploadFolder) +
                                 '&chunked=true',
                             method: 'post',
                             data: formData,
@@ -684,7 +791,7 @@ methods: {
             mergeFormData.append('uploadId', uploadId)
             mergeFormData.append('totalChunks', totalChunks.toString())
             mergeFormData.append('originalFileName', file.file.name)
-            mergeFormData.append('originalFileType', file.file.type)
+            mergeFormData.append('originalFileType', fileType)
             // HuggingFace 渠道：传递预计算的 SHA256
             if (precomputedSha256) {
                 mergeFormData.append('sha256', precomputedSha256)
@@ -697,7 +804,7 @@ methods: {
                     (this.channelName ? '&channelName=' + encodeURIComponent(this.channelName) : '') +
                     '&uploadNameType=' + uploadNameType + 
                     '&autoRetry=' + autoRetry + 
-                    '&uploadFolder=' + encodeURIComponent(this.uploadFolder) +
+                    '&uploadFolder=' + encodeURIComponent(targetUploadFolder) +
                     '&chunked=true&merge=true',
                 method: 'post',
                 data: mergeFormData,
@@ -880,7 +987,7 @@ methods: {
                 const fileUrl = URL.createObjectURL(file)
                 this.fileList.push({
                     uid: file.uid,
-                    name: file.name,
+                    name: file.uploadRelativePath || file.name,
                     url: fileUrl,
                     finalURL: '',
                     mdURL: '',
@@ -890,6 +997,7 @@ methods: {
                     status: 'uploading',
                     progreess: 0,
                     serverCompress: serverCompress,
+                    uploadFolder: file.uploadFolder ?? this.uploadFolder,
                     retryCount: 0,
                 })
                 resolve(file)
@@ -907,20 +1015,12 @@ methods: {
                     //将res包装成新的file
                     const newFile = new File([res], processedFile.name, { type: res.type })
                     newFile.uid = file.uid
-
-                    const myUploadCount = this.uploadCount++
+                    this.copyUploadPath(processedFile, newFile)
 
                     //开启服务端压缩条件：1.开启服务端压缩 2.文件大小小于10MB 3.上传渠道为Telegram
                     const needServerCompress = this.serverCompress && newFile.size / 1024 / 1024 < 10 && this.uploadChannel === 'telegram'
 
-                    if (myUploadCount === 0) {
-                        pushFileToQueue(newFile, needServerCompress)
-                    } else {
-                        setTimeout(() => {
-                            pushFileToQueue(newFile, needServerCompress)
-                            this.uploadCount--
-                        }, 300 * myUploadCount)
-                    }
+                    pushFileToQueue(newFile, needServerCompress)
                 }).catch((err) => {
                     this.$message.error(this.$t('uploadForm.compressFailedCannotUpload', { name: processedFile.name }))
                     reject(err)
@@ -928,19 +1028,9 @@ methods: {
             } else if (isLtLim) {
                 this.uploading = true
                 
-                const myUploadCount = this.uploadCount++
-
                 // 开启服务端压缩条件：1.上传渠道为Telegram 2.开启服务端压缩 3.如果为图片，则文件大小小于10MB，否则不限制大小
                 const needServerCompress = this.uploadChannel === 'telegram' && this.serverCompress && (processedFile.type.includes('image') ? processedFile.size / 1024 / 1024 < 10 : true)
-
-                if (myUploadCount === 0) {
-                    pushFileToQueue(processedFile, needServerCompress)
-                } else {
-                    setTimeout(() => {
-                        pushFileToQueue(processedFile, needServerCompress)
-                        this.uploadCount--
-                    }, 300 * myUploadCount)
-                }
+                pushFileToQueue(processedFile, needServerCompress)
             } else {
                 this.$message.error(this.$t('uploadForm.fileTooLarge', { name: processedFile.name }))
                 reject(this.$t('uploadForm.fileSizeTooLarge'))
@@ -997,15 +1087,28 @@ methods: {
             })
         }
     },
-    handlePaste(event) {
+    async handlePaste(event) {
         // 当粘贴位置是文本框时，不执行该操作
         if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
             return
         }
-        const items = event.clipboardData.items
-        if (items.length > 0) {
-            this.uploadFromUrl(items)
+        const clipboardData = event.clipboardData
+        if (!clipboardData) return
+
+        const items = Array.from(clipboardData.items || [])
+        const fileItems = items.filter(item => item.kind === 'file')
+        const stringItems = items.filter(item => item.kind === 'string')
+
+        if (fileItems.length > 0) {
+            event.preventDefault()
+            const entries = await collectFilesFromDataTransferItems(fileItems)
+            if (entries.length) await this.uploadLocalEntries(entries)
+        } else if (clipboardData.files?.length) {
+            event.preventDefault()
+            await this.uploadLocalEntries(filesToUploadEntries(clipboardData.files))
         }
+
+        if (stringItems.length > 0) this.uploadFromUrl(stringItems)
     },
     handleUploadPasteUrls() {
         // 用于上传在上传文本框中粘贴的外链
@@ -1063,25 +1166,7 @@ methods: {
     },
     uploadFromUrl(items) {
         for (let i = 0; i < items.length; i++) {
-            if (items[i].kind === 'file') {
-                const file = items[i].getAsFile()
-                // 允许上传任意类型的文件
-                file.uid = Date.now() + i
-                //接收beforeUpload的Promise对象
-                const checkResult = this.beforeUpload(file)
-                if (checkResult instanceof Promise) {
-                    checkResult.then((newFile) => {
-                        if (newFile instanceof File) {
-                            this.uploadFile({ file: newFile, 
-                                onProgress: (evt) => this.handleProgress(evt), 
-                                onSuccess: (response, file) => this.handleSuccess(response, file), 
-                                onError: (error, file) => this.handleError(error, file) })
-                        }
-                    }).catch((err) => {
-                        console.log(err)
-                    })
-                }
-            } else if (items[i].kind === 'string') {
+            if (items[i].kind === 'string') {
                 items[i].getAsString((text) => {
                     const urlPattern = /^(https?:\/\/[^\s$.?#].[^\s]*)$/;
                     let fileName = '';
@@ -1231,6 +1316,7 @@ methods: {
         // 创建 AbortController 用于取消上传
         const abortController = new AbortController();
         this.abortControllers.set(file.file.uid, abortController);
+        const targetUploadFolder = this.getFileUploadFolder(file);
 
         try {
             console.log('=== HuggingFace Direct Upload ===');
@@ -1266,7 +1352,7 @@ methods: {
                     fileSample,
                     channelName: this.channelName, // 传递指定的渠道名称
                     uploadNameType: this.uploadNameType,
-                    uploadFolder: this.uploadFolder
+                    uploadFolder: targetUploadFolder
                 },
                 withAuthCode: true,
                 signal: abortController.signal
@@ -1465,6 +1551,7 @@ methods: {
                         
                         const webpFile = new File([blob], newName, { type: 'image/webp' })
                         webpFile.uid = file.uid
+                        this.copyUploadPath(file, webpFile)
                         resolve(webpFile)
                     } else {
                         reject(new Error('WebP 转换失败'))
@@ -1526,59 +1613,59 @@ beforeDestroy() {
     }
 }
 .upload-form {
+    --upload-card-height: 45vh;
+    --upload-card-busy-height: 17vh;
+    --upload-list-height: 7vh;
+    --upload-list-inner-height: var(--upload-list-height);
+    --upload-list-busy-height: calc(var(--upload-card-height) - var(--upload-card-busy-height) + var(--upload-list-height));
+    --upload-list-gap: 10px;
+    --upload-list-radius: 15px;
+    --upload-card-vertical-padding: 40px;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
+    height: calc(var(--upload-card-height) + var(--upload-list-height) + var(--upload-list-gap) + var(--upload-card-vertical-padding));
 }
 .upload-list-card {
     width: 55vw;
-    height: 7vh;
-    margin-top: 10px;
+    height: var(--upload-list-height);
+    margin-top: var(--upload-list-gap);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border-radius: 15px;
-    background-color: var(--upload-list-card-bg-color);
-    backdrop-filter: blur(10px);
-    border: var(--upload-list-card-border);
-    box-shadow: var(--upload-list-card-box-shadow) !important;
+    border-radius: var(--upload-list-radius);
+    background-color: var(--glass-bg) !important;
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow) !important;
     transition: height 0.3s ease;
     overflow: hidden;
 }
 .upload-list-card :deep(.el-card__body) {
     padding: 0;
     width: 100%;
+    height: 100%;
     overflow: hidden;
 }
 .upload-list-container {
-    width: 55vw;
-    height: 7vh;
-    transition: height 0.3s ease;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
 }
 @media (max-width: 768px) {
     .upload-list-card {
         width: 70vw;
     }
-    .upload-list-container {
-        width: 70vw;
-    }
 }
 .upload-list-card.upload-list-busy {
-    height: 40vh;
-}
-.upload-list-container.upload-list-busy {
-    height: 40vh;
+    height: var(--upload-list-busy-height);
 }
 
-/* 上传时列表卡片边框效果 - 与流光颜色一致 */
-.upload-list-card.is-uploading {
-    border: 1px solid var(--el-upload-dragger-uniform-color, #409eff) !important;
-    box-shadow: 0 0 20px color-mix(in srgb, var(--el-upload-dragger-uniform-color, #409eff) 30%, transparent),
-                0 0 40px color-mix(in srgb, var(--el-upload-dragger-uniform-color, #409eff) 15%, transparent),
-                inset 0 0 20px color-mix(in srgb, var(--el-upload-dragger-uniform-color, #409eff) 8%, transparent) !important;
+.upload-list-card:not(.upload-list-busy) :deep(.el-scrollbar__view) {
+    height: 100%;
 }
 
 /* 拖拽上传卡片包装器 - 用于悬浮光斑效果 */
@@ -1587,13 +1674,102 @@ beforeDestroy() {
     overflow: visible;
 }
 
+.folder-upload-input {
+    display: none;
+}
+
+.upload-prompt-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    max-width: calc(100% - 24px);
+    min-width: 0;
+}
+
+.folder-upload-icon-button {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    box-sizing: border-box;
+    padding: 0;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--el-text-color-secondary);
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.folder-upload-icon-button :deep(svg) {
+    display: block;
+    width: 15px;
+    height: 15px;
+    transform: translateY(1px);
+}
+
+.folder-upload-icon-button:hover {
+    color: var(--primary-color-accent);
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.folder-upload-icon-button:focus-visible {
+    outline: none;
+    color: var(--primary-color-accent);
+    background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.folder-upload-icon-button.upload-list-busy {
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+}
+
+.folder-upload-icon-button.upload-list-busy :deep(svg) {
+    width: 13px;
+    height: 13px;
+}
+
+@media (max-width: 768px) {
+    .upload-prompt-row {
+        gap: 2px;
+        max-width: calc(100% - 12px);
+    }
+
+    .folder-upload-icon-button {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+    }
+
+    .folder-upload-icon-button.upload-list-busy {
+        width: 20px;
+        height: 20px;
+    }
+
+    .folder-upload-icon-button :deep(svg) {
+        width: 12px;
+        height: 12px;
+        transform: none;
+    }
+
+    .folder-upload-icon-button.upload-list-busy :deep(svg) {
+        width: 11px;
+        height: 11px;
+    }
+}
+
 /* 悬浮光斑效果 */
 .upload-card-glow {
     position: absolute;
     width: 200px;
     height: 200px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(96, 165, 250, 0.2) 0%, transparent 70%);
+    background: var(--upload-card-hover-glow-bg);
     pointer-events: none;
     transform: translate(-50%, -50%);
     opacity: 0;
@@ -1612,31 +1788,33 @@ beforeDestroy() {
     }
 }
 .upload-card-busy :deep(.el-upload-dragger) {
-    height: 17vh;
+    height: var(--upload-card-busy-height);
 }
 :deep(.el-upload-dragger)  {
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    height: 45vh;
+    height: var(--upload-card-height);
     border-radius: 15px;
-    border: var(--el-upload-dragger-border);
+    border: 1px solid var(--glass-border);
     opacity: 0.7;
-    background-color: var(--el-upload-dragger-bg-color);
-    backdrop-filter: blur(10px);
-    transition: all 0.3s ease;
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    box-shadow: var(--glass-shadow);
+    transition: height 0.3s ease, opacity 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
 }
 :deep(.el-upload:focus .el-upload-dragger) {
-    border-color: var(--el-upload-dragger-border-color);
+    border-color: var(--glass-border-hover);
 }
 :deep(.el-upload-dragger:hover) {
-    opacity: 0.8;
-    box-shadow: var(--el-upload-dragger-hover-box-shadow);
+    opacity: 0.7;
+    box-shadow: var(--glass-shadow);
 }
 :deep(.el-upload-dragger.is-dragover) {
-    opacity: 0.8;
-    box-shadow: var(--el-upload-dragger-hover-box-shadow);
+    opacity: 0.7;
+    box-shadow: var(--glass-shadow);
 }
 .is-uploading :deep(.el-upload-dragger) {
     border-color: transparent !important;
@@ -1661,12 +1839,12 @@ beforeDestroy() {
         from var(--border-angle),
         transparent 0deg,
         transparent 30deg,
-        var(--el-upload-dragger-uniform-color, #409eff) 60deg,
-        color-mix(in srgb, var(--el-upload-dragger-uniform-color, #409eff) 70%, white) 90deg,
+        var(--upload-card-effect-color, #2563EB) 60deg,
+        var(--upload-card-effect-highlight-color, color-mix(in srgb, var(--upload-card-effect-color, #2563EB) 70%, white)) 90deg,
         transparent 120deg,
         transparent 180deg,
-        color-mix(in srgb, var(--el-upload-dragger-uniform-color, #409eff) 70%, white) 210deg,
-        var(--el-upload-dragger-uniform-color, #409eff) 240deg,
+        var(--upload-card-effect-highlight-color, color-mix(in srgb, var(--upload-card-effect-color, #2563EB) 70%, white)) 210deg,
+        var(--upload-card-effect-color, #2563EB) 240deg,
         transparent 270deg,
         transparent 360deg
     );
@@ -1684,18 +1862,28 @@ beforeDestroy() {
     user-select: none;
     transition: all 0.3s ease;
 }
-@media (max-width: 768px) {
-    .el-upload__text {
-        font-size: small;
-    }
-}
 .el-upload__text.upload-list-busy {
     font-size: small;
+}
+@media (max-width: 768px) {
+    .el-upload__text,
+    .el-upload__text.upload-list-busy {
+        font-size: 12px;
+    }
 }
 .el-icon--upload {
     font-size: 100px;
     transition: font-size 0.3s ease;
-    color: var(--el-icon--upload-color);
+    color: #60A5FA;
+}
+html.dark .el-icon--upload {
+    color: #6B6B73;
+}
+.el-upload__text :deep(em) {
+    color: #1D4ED8;
+}
+html.dark .el-upload__text :deep(em) {
+    color: #93C5FD;
 }
 .el-icon--upload.upload-list-busy {
     font-size: 60px;
@@ -1714,13 +1902,12 @@ beforeDestroy() {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    height: 45vh;
+    height: var(--upload-card-height);
     border-radius: 15px;
     border: var(--el-upload-dragger-border);
     box-shadow: none;
     opacity: 0.7;
     background-color: var(--el-upload-dragger-bg-color);
-    backdrop-filter: blur(10px);
     transition: all 0.3s ease;
     box-sizing: border-box;
 }
@@ -1746,12 +1933,12 @@ beforeDestroy() {
         from var(--border-angle),
         transparent 0deg,
         transparent 30deg,
-        var(--el-upload-dragger-uniform-color, #409eff) 60deg,
-        color-mix(in srgb, var(--el-upload-dragger-uniform-color, #409eff) 70%, white) 90deg,
+        var(--upload-card-effect-color, #2563EB) 60deg,
+        var(--upload-card-effect-highlight-color, color-mix(in srgb, var(--upload-card-effect-color, #2563EB) 70%, white)) 90deg,
         transparent 120deg,
         transparent 180deg,
-        color-mix(in srgb, var(--el-upload-dragger-uniform-color, #409eff) 70%, white) 210deg,
-        var(--el-upload-dragger-uniform-color, #409eff) 240deg,
+        var(--upload-card-effect-highlight-color, color-mix(in srgb, var(--upload-card-effect-color, #2563EB) 70%, white)) 210deg,
+        var(--upload-card-effect-color, #2563EB) 240deg,
         transparent 270deg,
         transparent 360deg
     );
@@ -1774,76 +1961,58 @@ beforeDestroy() {
     align-items: center;
 }
 .upload-card-busy.paste-card {
-    height: 17vh;
+    height: var(--upload-card-busy-height);
 }
 .upload-card-textarea {
     width: 50vw;
     height: 70%;
     border-radius: 16px;
-    background: var(--textarea-bg, linear-gradient(135deg, rgba(64, 158, 255, 0.03) 0%, rgba(64, 158, 255, 0.01) 100%));
-    backdrop-filter: blur(12px);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: color-mix(in srgb, var(--primary-color) 4%, var(--glass-bg));
+    border: 1px solid var(--glass-border);
+    box-shadow: none;
+    transition: background-color 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
     box-sizing: border-box;
     display: flex;
     position: relative;
+    overflow: hidden;
 }
 .upload-card-busy .upload-card-textarea {
     height: 50%;
 }
 
-.upload-card-textarea::before {
-    content: '';
-    position: absolute;
-    inset: -1px;
-    border-radius: 17px;
-    padding: 1px;
-    background: linear-gradient(135deg, rgba(64, 158, 255, 0.3) 0%, rgba(64, 158, 255, 0.1) 50%, rgba(64, 158, 255, 0.3) 100%);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
-    opacity: 0.6;
-    transition: opacity 0.3s ease;
+.upload-card-textarea:hover {
+    background: color-mix(in srgb, var(--primary-color) 6%, var(--glass-bg));
+    border-color: var(--glass-border-hover);
 }
 
-.upload-card-textarea:hover::before {
-    opacity: 1;
+.upload-card-textarea:focus-within {
+    background: color-mix(in srgb, var(--primary-color) 7%, var(--glass-bg));
+    border-color: color-mix(in srgb, var(--primary-color) 45%, var(--glass-border));
+    box-shadow: none;
 }
 
-.upload-card-textarea:focus-within::before {
-    opacity: 1;
-    background: linear-gradient(135deg, rgba(64, 158, 255, 0.6) 0%, rgba(64, 158, 255, 0.2) 50%, rgba(64, 158, 255, 0.6) 100%);
-}
-
-:deep(.el-textarea__inner) {
+.upload-card-textarea :deep(.el-textarea__inner) {
     border-radius: 16px;
-    background: var(--textarea-inner-bg, rgba(0, 0, 0, 0.02));
-    backdrop-filter: blur(12px);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: transparent;
+    transition: color 0.2s ease, background-color 0.2s ease;
     resize: none;
-    border: 1px solid transparent;
+    border: none;
+    box-shadow: none !important;
     padding: 16px 20px;
     font-size: 14px;
     line-height: 1.6;
     color: var(--el-text-color-primary);
 }
 
-:deep(.el-textarea__inner::placeholder) {
+.upload-card-textarea :deep(.el-textarea__inner::placeholder) {
     color: var(--el-text-color-placeholder);
     font-weight: 400;
     opacity: 0.7;
 }
 
-:deep(.el-textarea__inner:hover) {
-    background: var(--textarea-inner-hover-bg, rgba(64, 158, 255, 0.03));
-}
-
-:deep(.el-textarea__inner:focus) {
-    border-color: transparent;
-    box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.15),
-                0 4px 20px rgba(64, 158, 255, 0.1),
-                inset 0 1px 3px rgba(0, 0, 0, 0.05);
-    background: var(--textarea-inner-focus-bg, rgba(64, 158, 255, 0.02));
+.upload-card-textarea :deep(.el-textarea__inner:focus) {
+    background: transparent;
+    box-shadow: none !important;
 }
 
 /* Modern Scrollbar Styles */
@@ -1859,173 +2028,221 @@ beforeDestroy() {
 }
 
 .upload-card-textarea ::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, rgba(64, 158, 255, 0.4) 0%, rgba(64, 158, 255, 0.6) 100%);
+    background: rgba(37, 99, 235, 0.5);
     border-radius: 6px;
     transition: background 0.3s ease;
 }
 
 .upload-card-textarea ::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, rgba(64, 158, 255, 0.6) 0%, rgba(64, 158, 255, 0.8) 100%);
+    background: rgba(37, 99, 235, 0.7);
 }
 .paste-card-actions {
     display: flex;
     justify-content: space-between;
     align-items: center;
     width: 50vw;
-    margin-top: 3%;
+    gap: 12px;
+    margin-top: 16px;
 }
 
-/* Modern Paste Card Styles */
+/* 粘贴上传操作区：延续全站克制的主题按钮风格 */
 .paste-card-upload-button {
-    min-width: 100px;
-    height: 42px;
-    border-radius: 14px !important;
+    min-width: 92px;
+    height: 38px;
+    border-radius: 10px !important;
     font-weight: 600;
-    font-size: 15px;
-    letter-spacing: 2px;
-    background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%) !important;
-    border: none !important;
-    box-shadow: 0 4px 15px rgba(64, 158, 255, 0.35),
-                inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    position: relative;
-    overflow: hidden;
-}
-
-.paste-card-upload-button::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
-    transition: left 0.6s ease;
+    font-size: 14px;
+    letter-spacing: 0.04em;
+    color: var(--primary-color-accent) !important;
+    background: color-mix(in srgb, var(--primary-color) 10%, transparent) !important;
+    border: 1px solid color-mix(in srgb, var(--primary-color) 36%, var(--glass-border)) !important;
+    box-shadow: none;
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease !important;
 }
 
 .paste-card-upload-button:hover {
-    transform: translateY(-3px) scale(1.02);
-    box-shadow: 0 8px 25px rgba(64, 158, 255, 0.45),
-                inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    color: var(--primary-color-accent) !important;
+    background: color-mix(in srgb, var(--primary-color) 14%, transparent) !important;
+    border-color: color-mix(in srgb, var(--primary-color) 52%, var(--glass-border)) !important;
+    transform: translateY(-1px);
+    box-shadow: none;
 }
 
-.paste-card-upload-button:hover::before {
-    left: 100%;
+.paste-card-upload-button:focus-visible {
+    color: var(--primary-color-accent) !important;
+    background: color-mix(in srgb, var(--primary-color) 14%, transparent) !important;
+    border-color: color-mix(in srgb, var(--primary-color) 52%, var(--glass-border)) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 14%, transparent) !important;
 }
 
 .paste-card-upload-button:active {
-    transform: translateY(-1px) scale(0.98);
+    transform: translateY(0);
+    background: color-mix(in srgb, var(--primary-color) 18%, transparent) !important;
 }
 
 /* 上传状态下缩小按钮 */
 .upload-card-busy .paste-card-upload-button {
-    min-width: 70px;
+    min-width: 72px;
     height: 32px;
-    border-radius: 10px !important;
+    border-radius: 8px !important;
     font-size: 13px;
-    letter-spacing: 1px;
+    letter-spacing: 0.02em;
 }
 
 .upload-card-busy .paste-card-actions {
-    margin-top: 2%;
+    margin-top: 10px;
 }
 
-/* Modern Radio Button Group */
+/* 转存 / 外链分段选择 */
 .paste-card-method-group {
-    background: var(--paste-method-group-bg, rgba(64, 158, 255, 0.08));
-    border-radius: 14px;
-    padding: 4px;
-    border: 1px solid var(--paste-method-group-border, rgba(64, 158, 255, 0.15));
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: 158px;
+    height: 38px;
+    box-sizing: border-box;
+    gap: 2px;
+    padding: 3px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    overflow: hidden;
 }
-.paste-card-method-group :deep(.el-radio-button__inner) {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    border-radius: 10px !important;
-    border: none !important;
+
+.paste-card-method-group::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: calc((100% - 8px) / 2);
+    height: calc(100% - 6px);
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary-color) 42%, var(--glass-border)) inset;
+    transform: translateX(0);
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+}
+
+.paste-card-method-group.is-external::before {
+    transform: translateX(calc(100% + 2px));
+}
+
+.paste-card-method-button {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    flex: 1 1 0;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 0 14px;
+    border: none;
+    border-radius: 7px;
     background: transparent;
     font-weight: 500;
-    padding: 10px 20px;
-    color: var(--el-text-color-regular);
+    font-size: 13px;
+    line-height: 1;
+    color: var(--el-text-color-secondary);
+    cursor: pointer;
+    transition: color 0.2s ease;
 }
 
-.paste-card-method-group :deep(.el-radio-button:first-child .el-radio-button__inner) {
-    border-radius: 10px !important;
+.paste-card-method-button:hover {
+    color: var(--primary-color-accent);
 }
 
-.paste-card-method-group :deep(.el-radio-button:last-child .el-radio-button__inner) {
-    border-radius: 10px !important;
+.paste-card-method-button.is-active {
+    color: var(--primary-color-accent);
 }
 
-.paste-card-method-group :deep(.el-radio-button__inner:hover) {
-    background: var(--paste-method-hover-bg, rgba(64, 158, 255, 0.12));
-    color: var(--el-color-primary);
-}
-
-.paste-card-method-group :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-    background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%) !important;
-    color: white !important;
-    box-shadow: 0 3px 10px rgba(64, 158, 255, 0.35);
+.paste-card-method-button:focus-visible {
+    outline: none;
+    color: var(--primary-color-accent);
 }
 
 /* Mobile responsive for paste card */
 @media (max-width: 768px) {
     .paste-card {
-        height: auto;
-        min-height: 30vh;
+        height: var(--upload-card-height);
+        min-height: 0;
+        max-height: var(--upload-card-height);
         padding: 6px;
         border-radius: 12px;
     }
 
     .upload-card-busy.paste-card {
-        height: auto;
-        min-height: 18vh;
+        height: var(--upload-card-busy-height);
+        min-height: 0;
+        max-height: var(--upload-card-busy-height);
         padding: 5px;
     }
 
     .upload-card-textarea {
         margin-top: 4px;
         width: calc(100% - 4px) !important;
+        min-height: 0;
+        flex-shrink: 1;
     }
 
-    .upload-card-textarea::before {
-        border-radius: 11px;
-    }
-
-    :deep(.el-textarea__inner) {
+    .upload-card-textarea :deep(.el-textarea__inner) {
+        height: 100%;
+        min-height: 0 !important;
+        box-sizing: border-box;
         border-radius: 10px;
         padding: 8px 10px;
         font-size: 12px;
     }
 
     .paste-card-actions {
+        flex: 0 0 auto;
         width: 100% !important;
         margin-top: 6px;
         gap: 6px;
     }
 
     .paste-card-upload-button {
-        height: 30px;
-        min-width: 55px;
-        border-radius: 8px !important;
-        font-size: 12px;
-        letter-spacing: 0.5px;
+        height: 28px;
+        min-width: 56px;
+        border-radius: 7px !important;
+        font-size: 11px;
+        letter-spacing: 0.02em;
         padding: 0 10px;
     }
 
-    .paste-card-method-group {
-        border-radius: 8px;
-        padding: 2px;
-        height: 30px;
-        display: flex;
-        align-items: center;
+    .upload-card-busy .paste-card-upload-button {
+        height: 28px;
+        min-width: 56px;
+        border-radius: 7px !important;
+        font-size: 11px;
     }
 
-    .paste-card-method-group :deep(.el-radio-button__inner) {
-        padding: 4px 10px;
-        font-size: 11px;
-        border-radius: 6px !important;
-        height: 26px;
-        display: flex;
-        align-items: center;
+    .upload-card-busy .paste-card-actions {
+        margin-top: 6px;
+    }
+
+    .paste-card-method-group {
+        width: 112px;
+        height: 28px;
+        padding: 2px;
+        border-radius: 8px;
+    }
+
+    .paste-card-method-group::before {
+        top: 2px;
+        left: 2px;
+        width: calc((100% - 6px) / 2);
+        height: calc(100% - 4px);
+        border-radius: 6px;
+    }
+
+    .paste-card-method-button {
+        height: 22px;
+        padding: 0 8px;
+        font-size: 10px;
+        border-radius: 6px;
     }
 }
 
@@ -2033,17 +2250,26 @@ beforeDestroy() {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    height: 7vh;
+    height: var(--upload-list-inner-height);
     padding: 0 15px;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
     position: sticky;
     top: 0;
     z-index: 1;
-    border-radius: 15px;
-    transition: all 0.3s ease;
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--upload-list-radius);
+    box-shadow: var(--glass-shadow);
+    opacity: 0.7;
 }
-.upload-list-dashboard.list-scrolled {
-    background-color: var(--upload-list-dashboard-bg-color);
-    box-shadow: var(--upload-list-dashboard-shadow);
+
+/* 收缩态直接跟随卡片内容区，避免固定 vh 与边框产生亚像素误差 */
+.upload-list-card:not(.upload-list-busy) .upload-list-dashboard {
+    height: 100%;
 }
 
 /* Enhanced Starry Sky Effect */
@@ -2058,17 +2284,17 @@ beforeDestroy() {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background-image: 
-        radial-gradient(2px 2px at 10% 10%, var(--el-upload-dragger-uniform-color) 50%, transparent 0),
-        radial-gradient(2px 2px at 20% 30%, var(--el-upload-dragger-uniform-color) 50%, transparent 0),
-        radial-gradient(2px 2px at 30% 10%, var(--el-upload-dragger-uniform-color) 50%, transparent 0),
-        radial-gradient(2px 2px at 40% 30%, var(--el-upload-dragger-uniform-color) 50%, transparent 0),
-        radial-gradient(2px 2px at 50% 10%, var(--el-upload-dragger-uniform-color) 50%, transparent 0),
-        radial-gradient(2px 2px at 60% 30%, var(--el-upload-dragger-uniform-color) 50%, transparent 0),
-        radial-gradient(2px 2px at 70% 10%, var(--el-upload-dragger-uniform-color) 50%, transparent 0),
-        radial-gradient(2px 2px at 80% 30%, var(--el-upload-dragger-uniform-color) 50%, transparent 0),
-        radial-gradient(2px 2px at 90% 10%, var(--el-upload-dragger-uniform-color) 50%, transparent 0),
-        radial-gradient(2px 2px at 15% 70%, var(--el-upload-dragger-uniform-color) 50%, transparent 0);
+    background-image:
+        radial-gradient(2px 2px at 10% 10%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0),
+        radial-gradient(2px 2px at 20% 30%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0),
+        radial-gradient(2px 2px at 30% 10%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0),
+        radial-gradient(2px 2px at 40% 30%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0),
+        radial-gradient(2px 2px at 50% 10%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0),
+        radial-gradient(2px 2px at 60% 30%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0),
+        radial-gradient(2px 2px at 70% 10%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0),
+        radial-gradient(2px 2px at 80% 30%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0),
+        radial-gradient(2px 2px at 90% 10%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0),
+        radial-gradient(2px 2px at 15% 70%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0);
     background-size: 200px 200px;
     opacity: 0;
     z-index: 0;
@@ -2081,12 +2307,12 @@ beforeDestroy() {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background-image: 
-        radial-gradient(3px 3px at 15% 15%, var(--el-upload-dragger-uniform-color) 50%, transparent 0),
-        radial-gradient(3px 3px at 50% 50%, var(--el-upload-dragger-uniform-color) 50%, transparent 0),
-        radial-gradient(3px 3px at 85% 85%, var(--el-upload-dragger-uniform-color) 50%, transparent 0),
-        radial-gradient(2.5px 2.5px at 35% 65%, var(--el-upload-dragger-uniform-color) 50%, transparent 0),
-        radial-gradient(2.5px 2.5px at 65% 35%, var(--el-upload-dragger-uniform-color) 50%, transparent 0);
+    background-image:
+        radial-gradient(3px 3px at 15% 15%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0),
+        radial-gradient(3px 3px at 50% 50%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0),
+        radial-gradient(3px 3px at 85% 85%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0),
+        radial-gradient(2.5px 2.5px at 35% 65%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0),
+        radial-gradient(2.5px 2.5px at 65% 35%, var(--upload-card-effect-color, #2563EB) 50%, transparent 0);
     background-size: 150px 150px;
     opacity: 0;
     z-index: 0;
@@ -2119,35 +2345,36 @@ beforeDestroy() {
 .modern-action-group {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px;
-    background: var(--modern-action-group-bg, rgba(64, 158, 255, 0.08));
-    border-radius: 14px;
-    border: 1px solid var(--modern-action-group-border, rgba(64, 158, 255, 0.15));
-    box-shadow: 0 2px 8px var(--modern-action-group-shadow, rgba(0, 0, 0, 0.06));
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    gap: 5px;
+    height: 44px;
+    box-sizing: border-box;
+    padding: 5px;
+    background: var(--glass-bg);
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
 }
 
 .modern-action-group:hover {
-    background: var(--modern-action-group-hover-bg, rgba(64, 158, 255, 0.12));
-    box-shadow: 0 4px 16px var(--modern-action-group-hover-shadow, rgba(64, 158, 255, 0.15));
-    transform: translateY(-1px);
+    background: var(--glass-bg);
+    border-color: var(--glass-border);
+    box-shadow: var(--glass-shadow);
 }
 
 .modern-action-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
     border: none;
-    border-radius: 10px;
-    background: var(--modern-action-btn-bg, linear-gradient(135deg, #409eff 0%, #66b1ff 100%));
-    color: white;
+    border-radius: 13px;
+    background: var(--upload-action-btn-bg);
+    color: var(--upload-action-btn-color);
     cursor: pointer;
-    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.22s ease, color 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease;
     font-size: 14px;
-    box-shadow: 0 2px 6px rgba(64, 158, 255, 0.25);
+    box-shadow: var(--upload-action-btn-shadow);
     position: relative;
     overflow: hidden;
     outline: none !important;
@@ -2161,35 +2388,43 @@ beforeDestroy() {
 .modern-action-btn::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-    transition: left 0.5s ease;
+    inset: 2px;
+    border-radius: 11px;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity 0.22s ease;
 }
 
 .modern-action-btn:hover {
-    transform: translateY(-2px) scale(1.05);
-    box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4);
+    background: var(--upload-action-btn-hover-bg);
+    box-shadow: var(--upload-action-btn-hover-shadow);
 }
 
 .modern-action-btn:hover::before {
-    left: 100%;
+    opacity: 0.08;
 }
 
 .modern-action-btn:active {
-    transform: translateY(0) scale(0.98);
-    box-shadow: 0 1px 4px rgba(64, 158, 255, 0.3);
+    transform: translateY(0) scale(0.97);
+    box-shadow: var(--upload-action-btn-active-shadow);
+}
+
+.modern-action-btn-copy {
+    color: var(--upload-action-copy-color);
+}
+
+.modern-action-btn-retry {
+    color: var(--upload-action-retry-color);
 }
 
 .modern-action-btn-danger {
-    background: var(--modern-action-btn-danger-bg, linear-gradient(135deg, #f56c6c 0%, #f78989 100%));
-    box-shadow: 0 2px 6px rgba(245, 108, 108, 0.25);
+    color: var(--upload-action-danger-color);
+    background: var(--upload-action-danger-bg);
 }
 
 .modern-action-btn-danger:hover {
-    box-shadow: 0 4px 12px rgba(245, 108, 108, 0.4);
+    background: var(--upload-action-danger-hover-bg);
+    box-shadow: var(--upload-action-danger-hover-shadow);
 }
 
 /* Dropdown Menu Styles */
@@ -2216,8 +2451,11 @@ beforeDestroy() {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 14px;
-    background: var(--dashboard-title-bg, linear-gradient(135deg, rgba(64, 158, 255, 0.06) 0%, transparent 100%));
+    height: 44px;
+    box-sizing: border-box;
+    padding: 0 14px;
+    background: var(--dashboard-title-bg, rgba(37, 99, 235, 0.06));
+    border: none;
     border-radius: 12px;
     color: var(--el-text-color-primary);
 }
@@ -2233,21 +2471,46 @@ beforeDestroy() {
    ============================================ */
 @media (max-width: 768px) {
     .modern-action-group {
-        gap: 4px;
-        padding: 3px;
-        border-radius: 12px;
+        height: 34px;
+        gap: 2px;
+        padding: 2px;
+        border-radius: 9px;
     }
 
     .modern-action-btn {
-        width: 32px;
-        height: 32px;
-        border-radius: 8px;
-        font-size: 12px;
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+        font-size: 11px;
     }
 
     .upload-list-dashboard-title {
-        font-size: 12px;
-        padding: 4px 10px;
+        height: 34px;
+        font-size: 11px;
+        padding: 0 7px;
+        border-radius: 9px;
+    }
+
+    .upload-list-dashboard-title .el-icon {
+        font-size: 13px;
+        margin-right: 1px;
+    }
+
+    /* 移动端:上传列表顶栏缩窄 padding,确保完整展示不溢出 */
+    .upload-list-dashboard {
+        padding: 0 6px;
+        gap: 4px;
+    }
+    /* 标题块可收缩,避免挤爆操作按钮 */
+    .upload-list-dashboard-title {
+        gap: 3px;
+        min-width: 0;
+        flex-shrink: 1;
+        overflow: hidden;
+    }
+    /* 操作组保持完整不被压缩 */
+    .upload-list-dashboard-action {
+        flex-shrink: 0;
     }
 }
 

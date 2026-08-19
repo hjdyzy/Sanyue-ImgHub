@@ -1,7 +1,7 @@
 <template>
     <div class="container">
         <el-header>
-            <div class="header-content">
+            <div class="header-content admin-header-content">
                 <DashboardTabs activeTab="customerConfig"></DashboardTabs>
                 <div class="header-action">
                     <el-tooltip :disabled="disableTooltip" :content="$t('sysConfig.logout')" placement="bottom">
@@ -11,12 +11,12 @@
             </div>
         </el-header>
         <div class="main-container">
-            <el-table :data="paginatedData" :default-sort="{ prop: 'count', order: 'descending' }" class="main-table" table-layout="fixed" v-loading="loading">
-                <el-table-column type="expand">
+            <el-table :data="paginatedData" :default-sort="{ prop: 'count', order: 'descending' }" row-key="ip" class="main-table" table-layout="fixed" v-loading="loading" @expand-change="handleExpandChange">
+                <el-table-column type="expand" width="48">
                     <template v-slot="props">
                         <div style="margin: 8px;">
                             <h3 style="text-align: center;">{{ $t('customerConfig.uploadFileList') }}</h3>
-                            <el-table :data="props.row.data" style="width: 100%" :default-sort="{ prop: 'metadata.TimeStamp', order: 'descending' }" table-layout="fixed" :max-height="400">
+                            <el-table :data="props.row.data" style="width: 100%" :default-sort="{ prop: 'metadata.TimeStamp', order: 'descending' }" table-layout="fixed" :max-height="400" v-loading="props.row.filesLoading">
                                 <el-table-column prop="metadata.FileName" :label="$t('customerConfig.fileNameCol')"></el-table-column>
                                 <el-table-column :label="$t('customerConfig.filePreview')">
                                     <template v-slot="{ row }">
@@ -41,15 +41,14 @@
                         </div>
                     </template>
                 </el-table-column>
-                <el-table-column prop="ip" :label="$t('customerConfig.ipAddress')"></el-table-column>
-                <el-table-column prop="address" :label="$t('customerConfig.address')"></el-table-column>
-                <el-table-column prop="count" :label="$t('customerConfig.uploadCount')" sortable></el-table-column>
-                <el-table-column :label="$t('customerConfig.allowUpload')">
+                <el-table-column prop="ip" :label="$t('customerConfig.ipAddress')" min-width="180"></el-table-column>
+                <el-table-column prop="address" :label="$t('customerConfig.address')" min-width="220"></el-table-column>
+                <el-table-column prop="count" :label="$t('customerConfig.uploadCount')" sortable min-width="110"></el-table-column>
+                <el-table-column :label="$t('customerConfig.allowUpload')" :fixed="allowUploadColumnFixed" :width="allowUploadColumnWidth" align="center">
                     <template v-slot="{ row }">
                         <el-switch
+                            class="allow-upload-switch"
                             v-model="row.enable"
-                            active-color="#13ce66"
-                            inactive-color="#ff4949"
                             :active-text="$t('customerConfig.allow')"
                             :inactive-text="$t('customerConfig.deny')"
                             @change="handleSwitchEnable(row)"
@@ -61,16 +60,18 @@
 
             <!-- 分页组件 -->
             <div class="pagination-container">
-                <el-pagination
-                    background
-                    layout="prev, pager, next"
-                    :total="dealedData.length"
-                    :current-page="currentPage"
-                    :page-size="pageSize"
-                    :pager-count="pagerCount"
-                    @current-change="handlePageChange"
-                ></el-pagination>
-                <el-button v-if="currentPage === Math.ceil(dealedData.length / pageSize)" type="primary" @click="loadMoreData" :loading="loading" class="load-more">{{ $t('customerConfig.loadMore') }}</el-button>
+                <div class="pagination-center">
+                    <el-pagination
+                        background
+                        layout="prev, pager, next"
+                        :total="dealedData.length"
+                        :current-page="currentPage"
+                        :page-size="pageSize"
+                        :pager-count="pagerCount"
+                        @current-change="handlePageChange"
+                    ></el-pagination>
+                    <el-button v-if="currentPage === Math.ceil(dealedData.length / pageSize)" type="primary" @click="loadMoreData" :loading="loading" class="load-more">{{ $t('customerConfig.loadMore') }}</el-button>
+                </div>
             </div>
         </div>
     </div>
@@ -91,6 +92,7 @@ export default {
             blockipList: [], // 禁止上传的IP列表
 
             loading: false,
+            viewportWidth: window.innerWidth,
 
             // 分页数据
             currentPage: 1,
@@ -101,11 +103,20 @@ export default {
         DashboardTabs
     },
     computed: {
+        isMobile() {
+            return this.viewportWidth < 768;
+        },
         disableTooltip() {
-            return window.innerWidth < 768;
+            return this.isMobile;
         },
         pagerCount() {
-            return window.innerWidth < 768 ? 3 : 7;
+            return this.isMobile ? 3 : 7;
+        },
+        allowUploadColumnFixed() {
+            return this.isMobile ? 'right' : false;
+        },
+        allowUploadColumnWidth() {
+            return this.isMobile ? 96 : 170;
         },
         paginatedData() {
             // 计算分页数据
@@ -116,8 +127,16 @@ export default {
     },
     methods: {
         handleLogout() {
-            this.$store.commit('setCredentials', null);
-            this.$router.push('/adminLogin');
+            const url = process.env.NODE_ENV === 'production' ? '/api/auth/logout' : '/api/api/auth/logout';
+            fetch(url, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ authType: 'admin' })
+            }).finally(() => {
+                this.$store.commit('setAdminLoggedIn', false);
+                this.$router.push('/adminLogin');
+            });
         },
         formatTimeStamp(timeStamp) {
             return new Date(timeStamp).toLocaleString();
@@ -153,6 +172,21 @@ export default {
                 this.loadMoreData();
             }
         },
+        async handleExpandChange(row, expandedRows) {
+            if (!expandedRows.some(item => item.ip === row.ip) || row.filesLoaded || row.filesLoading) return;
+
+            row.filesLoading = true;
+            try {
+                const response = await fetchWithAuth(`/api/manage/cusConfig/files?ip=${encodeURIComponent(row.ip)}&count=${row.count}`, { method: 'GET' });
+                const result = await response.json();
+                row.data = (result.data || []).sort(this.sortByTimestamp).reverse();
+                row.filesLoaded = true;
+            } catch (err) {
+                this.$message.error(this.$t('customerConfig.loadError'));
+            } finally {
+                row.filesLoading = false;
+            }
+        },
         loadMoreData() {
             this.loading = true;
             const start = this.dealedData.length;
@@ -166,7 +200,9 @@ export default {
                         ip: item.ip,
                         address: item.address,
                         count: item.count,
-                        data: item.data,
+                        data: [],
+                        filesLoaded: false,
+                        filesLoading: false,
                         enable: enable
                     };
                 }));
@@ -181,27 +217,22 @@ export default {
         handleSizeChange(size) {
             this.pageSize = size;
             this.currentPage = 1;
+        },
+        handleResize() {
+            this.viewportWidth = window.innerWidth;
         }
     },
     mounted() {
+        window.addEventListener('resize', this.handleResize);
+
         // 初始化背景图
         this.initializeBackground('adminBkImg', '.container', false, true);
 
         this.loading = true;
 
-        fetchWithAuth("/api/manage/check", { method: 'GET' })
-        .then(response => response.text())
-        .then(result => {
-            if(result == "true"){
-                this.showLogoutButton=true;
-                // 在 check 成功后再执行 list 的 fetch 请求
-                return fetchWithAuth("/api/manage/cusConfig/list?count=20", { method: 'GET' });
-            } else if(result=="Not using basic auth."){
-                return fetchWithAuth("/api/manage/cusConfig/list?count=20", { method: 'GET' });
-            } else{
-                throw new Error('Unauthorized');
-            }
-        })
+        // 路由守卫已通过 /api/auth/sessionCheck 验证认证状态
+        this.showLogoutButton = this.$store.state.adminLoggedIn;
+        fetchWithAuth("/api/manage/cusConfig/list?count=20", { method: 'GET' })
         .then(response => response.json())
         .then(async result => {
             // 读取blockipList, 接口返回格式为 'ip1,ip2,ip3'，需要转换为数组
@@ -213,7 +244,9 @@ export default {
                     ip: item.ip,
                     address: item.address,
                     count: item.count,
-                    data: item.data,
+                    data: [],
+                    filesLoaded: false,
+                    filesLoading: false,
                     enable: enable
                 };
             });
@@ -226,9 +259,14 @@ export default {
         .finally(() => {
             this.loading = false;
         });
+    },
+    beforeUnmount() {
+        window.removeEventListener('resize', this.handleResize);
     }
 }
 </script>
+
+<style scoped src="@/styles/admin-common.css"></style>
 
 <style scoped>
 .main-table {
@@ -240,8 +278,8 @@ export default {
     overflow: hidden;
     border: 1px solid var(--glass-border);
     background: var(--glass-bg) !important;
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
 }
 
 .main-table :deep(.el-table__inner-wrapper) {
@@ -285,194 +323,41 @@ export default {
     padding: 0;
 }
 
-.header-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 24px;
-    /* macOS 风格毛玻璃效果 */
-    background: rgba(255, 255, 255, 0.72);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
-    /* 顶部边框形成玻璃边缘光泽 */
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-top: 1px solid rgba(255, 255, 255, 0.5);
-    /* 悬浮阴影效果 */
-    box-shadow: 
-        0 4px 30px rgba(0, 0, 0, 0.1),
-        0 1px 3px rgba(0, 0, 0, 0.05),
-        inset 0 1px 0 rgba(255, 255, 255, 0.4);
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    border-radius: 16px;
-    position: fixed;
-    top: 8px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: calc(95% - 16px);
-    z-index: 2001;
-    min-height: 45px;
-}
-
-/* 深色模式毛玻璃效果 */
-html.dark .header-content {
-    background: rgba(30, 30, 30, 0.75);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 
-        0 4px 30px rgba(0, 0, 0, 0.3),
-        0 1px 3px rgba(0, 0, 0, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-
-@media (max-width: 768px) {
-    .header-content {
-        flex-direction: column;
-        top: 6px;
-        width: calc(100% - 32px);
-        border-radius: 14px;
-        padding: 6px 12px;
-        gap: 4px;
-    }
-    
-    .header-icon {
-        font-size: 0.95em;
-    }
-}
-
-.header-content:hover {
-    background: rgba(255, 255, 255, 0.82);
-    box-shadow: 
-        0 8px 40px rgba(0, 0, 0, 0.12),
-        0 2px 6px rgba(0, 0, 0, 0.08),
-        inset 0 1px 0 rgba(255, 255, 255, 0.5);
-    transform: translateX(-50%) translateY(-1px);
-}
-
-html.dark .header-content:hover {
-    background: rgba(35, 35, 35, 0.85);
-    box-shadow: 
-        0 8px 40px rgba(0, 0, 0, 0.4),
-        0 2px 6px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.header-icon {
-    font-size: 1.5em;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    color: var(--admin-container-color);
-    outline: none;
-}
-
-.header-icon:hover {
-    color: #B39DDB; /* 使用柔和的淡紫色 */
-    transform: scale(1.2);
-}
-
-.header-action {
-    display: flex;
-    gap: 10px;
-}
-
 .main-container {
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-top: 20px;
+    margin-top: 32px;
 }
 
 @media (max-width: 768px) {
     .main-container {
-        margin-top: 35px;
+        margin-top: 60px;
+    }
+
+    .allow-upload-switch :deep(.el-switch__label) {
+        display: none;
+    }
+
+    .main-table :deep(.el-table-fixed-column--right),
+    .main-table :deep(.el-table__fixed-right-patch) {
+        background: var(--glass-bg) !important;
+        backdrop-filter: blur(20px) saturate(1.4);
+        -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    }
+
+    .main-table :deep(.el-table__body-wrapper .el-table__row td.el-table-fixed-column--right) {
+        background: var(--glass-bg) !important;
+        backdrop-filter: blur(20px) saturate(1.4);
+        -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    }
+
+    .main-table :deep(.el-table__header-wrapper .el-table-fixed-column--right),
+    .main-table :deep(.el-table__body-wrapper .el-table__row:hover .el-table-fixed-column--right) {
+        background: var(--glass-header-bg) !important;
+        backdrop-filter: blur(20px) saturate(1.4);
+        -webkit-backdrop-filter: blur(20px) saturate(1.4);
     }
 }
 
-.pagination-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-top: 24px;
-    padding-bottom: 30px;
-    gap: 15px;
-}
-
-/* 页码按钮美化 */
-.pagination-container :deep(.el-pagination) {
-    --el-pagination-button-bg-color: var(--admin-dashboard-btn-bg-color);
-    --el-pagination-hover-color: var(--admin-purple);
-}
-
-.pagination-container :deep(.el-pager li) {
-    background: var(--admin-dashboard-btn-bg-color);
-    border-radius: 10px;
-    margin: 0 4px;
-    min-width: 36px;
-    height: 36px;
-    line-height: 36px;
-    font-weight: 500;
-    border: none;
-    box-shadow: var(--admin-dashboard-btn-shadow);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.pagination-container :deep(.el-pager li:hover) {
-    color: #38bdf8;
-    transform: translateY(-2px);
-    box-shadow: var(--admin-dashboard-btn-hover-shadow);
-}
-
-.pagination-container :deep(.el-pager li.is-active) {
-    background: linear-gradient(135deg, #0ea5e9, #38bdf8) !important;
-    color: white !important;
-    border-radius: 10px;
-    box-shadow: 
-        var(--admin-dashboard-btn-shadow),
-        0 4px 12px rgba(56, 189, 248, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.pagination-container :deep(.el-pager li.is-active:hover) {
-    transform: translateY(-2px) !important;
-    box-shadow: 
-        var(--admin-dashboard-btn-hover-shadow),
-        0 6px 16px rgba(56, 189, 248, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
-}
-
-.pagination-container :deep(.btn-prev),
-.pagination-container :deep(.btn-next) {
-    background: var(--admin-dashboard-btn-bg-color) !important;
-    border-radius: 10px !important;
-    min-width: 36px;
-    height: 36px;
-    border: none;
-    box-shadow: var(--admin-dashboard-btn-shadow);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.pagination-container :deep(.btn-prev:hover),
-.pagination-container :deep(.btn-next:hover) {
-    color: #38bdf8;
-    transform: translateY(-2px);
-    box-shadow: var(--admin-dashboard-btn-hover-shadow);
-}
-
-.load-more {
-    cursor: pointer;
-    background-color: var(--admin-dashboard-btn-bg-color);
-    box-shadow: var(--admin-dashboard-btn-shadow);
-    color: var(--admin-dashboard-btn-color);
-    border: none;
-    transition: all 0.3s ease;
-    margin-left: 0;
-    border-radius: 8px;
-    padding: 8px 20px;
-    height: 36px;
-}
-
-.load-more:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
 </style>

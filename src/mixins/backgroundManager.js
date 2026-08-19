@@ -4,6 +4,10 @@
  */
 
 import { mapGetters } from 'vuex'
+import '@/styles/background.css'
+
+const WALLPAPER_ACTIVE_CLASS = 'wallpaper-active'
+const WALLPAPER_CONTAINER_ACTIVE_CLASS = 'wallpaper-background-active'
 
 export default {
   data() {
@@ -13,6 +17,8 @@ export default {
       backgroundInterval: null, // 存储轮播定时器
       // 存储初始化参数，用于主题切换时重新初始化
       backgroundInitParams: null,
+      backgroundLoadGeneration: 0,
+      backgroundCleanupTimer: null,
     }
   },
   computed: {
@@ -43,7 +49,10 @@ export default {
           z-index: -1;
           pointer-events: none;
           opacity: 0;
-          transition: opacity 1.2s ease-in-out, filter 0.3s ease;
+          transition: opacity 1.2s ease-in-out, filter 0.3s ease, transform 4.2s ease-out;
+          transform: scale(1);
+          transform-origin: center center;
+          will-change: opacity, transform;
           filter: var(--background-image-filter, brightness(1));
         }
         .background-image2 {
@@ -56,7 +65,10 @@ export default {
           z-index: -1;
           pointer-events: none;
           opacity: 0;
-          transition: opacity 1.2s ease-in-out, filter 0.3s ease;
+          transition: opacity 1.2s ease-in-out, filter 0.3s ease, transform 4.2s ease-out;
+          transform: scale(1);
+          transform-origin: center center;
+          will-change: opacity, transform;
           filter: var(--background-image-filter, brightness(1));
         }
       `
@@ -122,6 +134,28 @@ export default {
     },
 
     /**
+     * 同步页面壁纸状态。只有成功加载的壁纸才允许页面容器变为透明。
+     * @param {boolean} active - 是否已有可显示的壁纸
+     * @param {HTMLElement|null} container - 当前壁纸所在的页面容器
+     */
+    setWallpaperActive(active, container = null) {
+      if (!document.body) return
+
+      document.querySelectorAll(`.${WALLPAPER_CONTAINER_ACTIVE_CLASS}`).forEach((element) => {
+        element.classList.remove(WALLPAPER_CONTAINER_ACTIVE_CLASS)
+      })
+
+      document.body.classList.toggle(WALLPAPER_ACTIVE_CLASS, active)
+      if (active && container) {
+        container.classList.add(WALLPAPER_CONTAINER_ACTIVE_CLASS)
+      }
+    },
+
+    isBackgroundLoadCurrent(generation) {
+      return generation === this.backgroundLoadGeneration
+    },
+
+    /**
      * 动态创建背景图片元素
      * @param {HTMLElement} container - 要插入背景图片的容器元素
      */
@@ -160,6 +194,16 @@ export default {
      * @param {boolean} autoCreateElements - 是否自动创建背景元素
      */
     initializeBackground(configKey, containerSelector = '.login', useDefaultBackground = false, autoCreateElements = false) {
+      // 如果全局壁纸开关关闭，直接清理背景并返回
+      if (this.userConfig?.wallpaperEnabled === false) {
+        this.clearBackgroundImages(true);
+        return;
+      }
+
+      // 新页面在壁纸成功加载前保留自身底色，并使旧的异步加载结果失效
+      this.backgroundLoadGeneration += 1
+      this.setWallpaperActive(false)
+
       // 保存初始化参数，用于主题切换时重新初始化
       this.backgroundInitParams = {
         configKey,
@@ -203,13 +247,14 @@ export default {
      * 设置 Bing 壁纸轮播
      */
     setupBingWallpaper(bg1, bg2, containerSelector) {
+      const loadGeneration = this.backgroundLoadGeneration
       this.$store.dispatch('fetchBingWallPapers').then(() => {
-        if (this.bingWallPapers.length === 0) return
+        if (!this.isBackgroundLoadCurrent(loadGeneration) || this.bingWallPapers.length === 0) return
 
-        this.loadBackgroundImage(bg1, this.bingWallPapers[this.bingWallPaperIndex]?.url, containerSelector)
+        this.loadBackgroundImage(bg1, this.bingWallPapers[this.bingWallPaperIndex]?.url, containerSelector, true, loadGeneration)
         
         this.backgroundInterval = setInterval(() => {
-          this.switchBingWallpaper(bg1, bg2)
+          this.switchBingWallpaper(bg1, bg2, containerSelector)
         }, this.bkInterval)
       })
     },
@@ -218,10 +263,10 @@ export default {
      * 设置自定义壁纸轮播
      */
     setupCustomWallpaperCarousel(bg1, bg2, wallpapers, containerSelector) {
-      this.loadBackgroundImage(bg1, wallpapers[this.customWallPaperIndex], containerSelector)
+      this.loadBackgroundImage(bg1, wallpapers[this.customWallPaperIndex], containerSelector, true)
       
       this.backgroundInterval = setInterval(() => {
-        this.switchCustomWallpaper(bg1, bg2, wallpapers)
+        this.switchCustomWallpaper(bg1, bg2, wallpapers, containerSelector)
       }, this.bkInterval)
     },
 
@@ -248,31 +293,61 @@ export default {
     /**
      * 加载背景图片
      */
-    loadBackgroundImage(imgElement, imageSrc, containerSelector) {
+    loadBackgroundImage(imgElement, imageSrc, containerSelector, enableZoom = false, loadGeneration = this.backgroundLoadGeneration) {
       // 确保初始化时层级正确
       imgElement.style.zIndex = -1
       imgElement.style.opacity = 0
+      this.prepareBackgroundMotion(imgElement, enableZoom)
       const container = document.querySelector(containerSelector)
       this.prepareBackgroundContainer(container)
 
       const showImage = () => {
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
+            if (!this.isBackgroundLoadCurrent(loadGeneration)) return
+
             imgElement.style.opacity = this.bkOpacity
+            if (enableZoom) {
+              imgElement.style.transform = 'scale(1.045)'
+            }
+            this.setWallpaperActive(true, container)
           })
         })
       }
 
+      if (!imageSrc) {
+        imgElement.removeAttribute('src')
+        this.setWallpaperActive(false)
+        return
+      }
+
       const preload = new Image()
       preload.onload = () => {
+        if (!this.isBackgroundLoadCurrent(loadGeneration)) return
+
         imgElement.src = imageSrc
         showImage()
       }
       preload.onerror = () => {
-        imgElement.src = imageSrc
-        showImage()
+        if (!this.isBackgroundLoadCurrent(loadGeneration)) return
+
+        imgElement.style.opacity = 0
+        imgElement.removeAttribute('src')
+        this.setWallpaperActive(false)
+        console.warn('背景图片加载失败，已保留页面原有背景')
       }
       preload.src = imageSrc
+    },
+
+    prepareBackgroundMotion(imgElement, enableZoom = false) {
+      if (!imgElement) return
+
+      const zoomDuration = Math.max(this.bkInterval + 1200, 4200)
+      imgElement.style.transition = enableZoom
+        ? `opacity 1.2s ease-in-out, filter 0.3s ease, transform ${zoomDuration}ms ease-out`
+        : 'opacity 1.2s ease-in-out, filter 0.3s ease, transform 0.3s ease'
+      imgElement.style.transformOrigin = 'center center'
+      imgElement.style.transform = 'scale(1)'
     },
     
     prepareBackgroundContainer(container) {
@@ -293,7 +368,7 @@ export default {
     /**
      * 切换 Bing 壁纸
      */
-    switchBingWallpaper(bg1, bg2) {
+    switchBingWallpaper(bg1, bg2, containerSelector) {
       if (this.bingWallPapers.length === 0) return
 
       const isBg1Current = bg1.style.opacity != 0
@@ -302,24 +377,39 @@ export default {
       
       this.bingWallPaperIndex = (this.bingWallPaperIndex + 1) % this.bingWallPapers.length
       const nextUrl = this.bingWallPapers[this.bingWallPaperIndex]?.url
-
-      // 【层级魔法】：让旧图垫底，新图置顶
-      curBg.style.zIndex = -2
-      nextBg.style.zIndex = -1
+      const loadGeneration = this.backgroundLoadGeneration
+      if (!nextUrl) return
 
       const preload = new Image()
       preload.onload = () => {
+        if (!this.isBackgroundLoadCurrent(loadGeneration)) return
+
+        // 新图成功加载后再调整层级，失败时继续显示当前壁纸
+        curBg.style.zIndex = -2
+        nextBg.style.zIndex = -1
+        this.prepareBackgroundMotion(nextBg, true)
         nextBg.src = nextUrl
         
         // 稍微延迟 50ms，确保浏览器把新图渲染到 DOM 上且层级已更新
         setTimeout(() => {
+          if (!this.isBackgroundLoadCurrent(loadGeneration)) return
+
           nextBg.style.opacity = this.bkOpacity // 新图直接在顶层优雅淡入
+          nextBg.style.transform = 'scale(1.045)'
+          this.setWallpaperActive(true, document.querySelector(containerSelector))
           
           // 等新图 1.2s 完全覆盖后，在底下默默把旧图透明度归零，毫无视觉断层
           setTimeout(() => { 
+            if (!this.isBackgroundLoadCurrent(loadGeneration)) return
             curBg.style.opacity = 0 
+            this.prepareBackgroundMotion(curBg, true)
           }, 1200)
         }, 50)
+      }
+      preload.onerror = () => {
+        if (this.isBackgroundLoadCurrent(loadGeneration)) {
+          console.warn('下一张 Bing 壁纸加载失败，继续显示当前壁纸')
+        }
       }
       preload.src = nextUrl
     },
@@ -327,29 +417,44 @@ export default {
     /**
      * 切换自定义壁纸
      */
-    switchCustomWallpaper(bg1, bg2, wallpapers) {
+    switchCustomWallpaper(bg1, bg2, wallpapers, containerSelector) {
       const isBg1Current = bg1.style.opacity != 0
       const curBg = isBg1Current ? bg1 : bg2
       const nextBg = isBg1Current ? bg2 : bg1
       
       this.customWallPaperIndex = (this.customWallPaperIndex + 1) % wallpapers.length
       const nextUrl = wallpapers[this.customWallPaperIndex]
-
-      // 旧图垫底，新图置顶
-      curBg.style.zIndex = -2
-      nextBg.style.zIndex = -1
+      const loadGeneration = this.backgroundLoadGeneration
+      if (!nextUrl) return
 
       const preload = new Image()
       preload.onload = () => {
+        if (!this.isBackgroundLoadCurrent(loadGeneration)) return
+
+        // 新图成功加载后再调整层级，失败时继续显示当前壁纸
+        curBg.style.zIndex = -2
+        nextBg.style.zIndex = -1
+        this.prepareBackgroundMotion(nextBg, true)
         nextBg.src = nextUrl
         
         setTimeout(() => {
+          if (!this.isBackgroundLoadCurrent(loadGeneration)) return
+
           nextBg.style.opacity = this.bkOpacity
+          nextBg.style.transform = 'scale(1.045)'
+          this.setWallpaperActive(true, document.querySelector(containerSelector))
           
           setTimeout(() => { 
+            if (!this.isBackgroundLoadCurrent(loadGeneration)) return
             curBg.style.opacity = 0 
+            this.prepareBackgroundMotion(curBg, true)
           }, 1200)
         }, 50)
+      }
+      preload.onerror = () => {
+        if (this.isBackgroundLoadCurrent(loadGeneration)) {
+          console.warn('下一张自定义壁纸加载失败，继续显示当前壁纸')
+        }
       }
       preload.src = nextUrl
     },
@@ -371,41 +476,49 @@ export default {
     clearBackgroundImages(immediate = false) {
       const bg1 = document.getElementById('bg1')
       const bg2 = document.getElementById('bg2')
+
+      // 使尚未完成的预加载回调失效
+      this.backgroundLoadGeneration += 1
+      if (this.backgroundCleanupTimer) {
+        clearTimeout(this.backgroundCleanupTimer)
+        this.backgroundCleanupTimer = null
+      }
       
       if (immediate) {
+        this.setWallpaperActive(false)
         // 立即清除，不使用过渡效果
         if (bg1) {
           bg1.style.transition = 'none'
           bg1.style.opacity = 0
-          bg1.src = ''
+          bg1.removeAttribute('src')
           // 恢复过渡效果
           setTimeout(() => {
-            if (bg1) bg1.style.transition = 'opacity 1.2s ease-in-out'
+            if (bg1) bg1.style.transition = 'opacity 1.2s ease-in-out, filter 0.3s ease, transform 0.3s ease'
           }, 50)
         }
         if (bg2) {
           bg2.style.transition = 'none'
           bg2.style.opacity = 0
-          bg2.src = ''
+          bg2.removeAttribute('src')
           // 恢复过渡效果
           setTimeout(() => {
-            if (bg2) bg2.style.transition = 'opacity 1.2s ease-in-out'
+            if (bg2) bg2.style.transition = 'opacity 1.2s ease-in-out, filter 0.3s ease, transform 0.3s ease'
           }, 50)
         }
       } else {
         // 使用过渡效果淡出
         if (bg1) {
           bg1.style.opacity = 0
-          setTimeout(() => {
-            if (bg1) bg1.src = ''
-          }, 1200)
         }
         if (bg2) {
           bg2.style.opacity = 0
-          setTimeout(() => {
-            if (bg2) bg2.src = ''
-          }, 1200)
         }
+        this.backgroundCleanupTimer = setTimeout(() => {
+          if (bg1) bg1.removeAttribute('src')
+          if (bg2) bg2.removeAttribute('src')
+          this.setWallpaperActive(false)
+          this.backgroundCleanupTimer = null
+        }, 1200)
       }
     },
 
@@ -447,26 +560,31 @@ export default {
 
       // 预加载新背景图
       const preloadImg = new Image()
+      const loadGeneration = this.backgroundLoadGeneration
       preloadImg.onload = () => {
+        if (!this.isBackgroundLoadCurrent(loadGeneration)) return
+
         // 设置下一个背景的图片源
-        nextBg.src = newThemeImage
-        
-        // 等待图片加载完成后执行淡入淡出过渡
         nextBg.onload = () => {
+          nextBg.onload = null
+          if (!this.isBackgroundLoadCurrent(loadGeneration)) return
+
           // 淡出当前背景
           currentBg.style.opacity = 0
           
           // 稍微延迟后淡入新背景，确保过渡效果平滑
           setTimeout(() => {
+            if (!this.isBackgroundLoadCurrent(loadGeneration)) return
             nextBg.style.opacity = this.bkOpacity
           }, 50) // 50ms 延迟，让淡出效果先开始
         }
+        nextBg.src = newThemeImage
       }
       
       preloadImg.onerror = () => {
-        // 如果预加载失败，回退到直接重新初始化
-        console.warn('主题背景图预加载失败，回退到直接切换')
-        this.reinitializeBackground(configKey, containerSelector, useDefaultBackground, autoCreateElements)
+        if (this.isBackgroundLoadCurrent(loadGeneration)) {
+          console.warn('主题背景图加载失败，继续显示当前壁纸')
+        }
       }
       
       preloadImg.src = newThemeImage

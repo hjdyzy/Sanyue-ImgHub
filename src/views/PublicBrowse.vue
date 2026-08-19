@@ -16,7 +16,7 @@
       </div>
       <div class="header-right">
         <!-- 搜索框：默认只显示放大镜，点击展开 -->
-        <div class="search-box" :class="{ expanded: searchExpanded }">
+        <div ref="searchBoxRef" class="search-box" :class="{ expanded: searchExpanded }">
           <span class="search-icon" @click="toggleSearch" v-if="!searchExpanded">
             <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
           </span>
@@ -90,8 +90,8 @@
           :key="colIndex" 
           class="waterfall-column"
         >
-          <div
-            v-for="file in column"
+          <div 
+            v-for="file in column" 
             :key="file.name"
             class="waterfall-item"
             :class="{ 'text-file-item': isTextFile(file) }"
@@ -102,19 +102,19 @@
             <div class="image-wrapper" :class="{ loaded: file.loaded, 'text-preview': isTextFile(file) }">
               <div v-if="isTextFile(file)" class="text-file-preview">
                 <div class="text-file-header">
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/></svg>
-                    <span class="text-file-name">{{ getFileName(file.name) }}</span>
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/></svg>
+                  <span class="text-file-name">{{ getFileName(file.name) }}</span>
                 </div>
-                <div v-if="textPreviewCache[file.name]?.loading" class="text-preview-placeholder" style="padding: 20px; text-align: center;">加载预览...</div>
+                <div v-if="textPreviewCache[file.name]?.loading" class="text-preview-placeholder">加载预览...</div>
                 <div v-else-if="textPreviewCache[file.name]?.highlighted" class="text-preview-code">
-                    <pre><code class="hljs" v-html="textPreviewCache[file.name].highlighted"></code></pre>
-                    <div class="text-preview-fade"></div>
-                    <div class="text-preview-more">点击查看完整内容 →</div>
+                  <pre><code class="hljs" v-html="textPreviewCache[file.name].highlighted"></code></pre>
+                  <div class="text-preview-fade"></div>
+                  <div class="text-preview-more">点击查看完整内容</div>
                 </div>
                 <div v-else class="text-preview-placeholder">悬停预览内容</div>
               </div>
               <img 
-                v-if="isImage(file)"
+                v-else-if="isImage(file)"
                 :src="getFileUrl(file.name)" 
                 :alt="file.name"
                 loading="lazy"
@@ -135,7 +135,7 @@
                 <svg class="audio-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
                 <span class="audio-name">{{ getFileName(file.name) }}</span>
               </div>
-              <div v-else-if="!isTextFile(file)" class="file-placeholder">
+              <div v-else class="file-placeholder">
                 <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/></svg>
                 <span class="file-name">{{ getFileName(file.name) }}</span>
               </div>
@@ -328,6 +328,8 @@ import { hardStopAll, installGlobalMediaGuards } from '@/utils/mediaManager';
 import hljs from '@/utils/hljs';
 import { isTextFile as checkIsTextFile, getLanguageFromExt } from '@/utils/textFileDetector';
 
+const TEXT_PREVIEW_LINE_LIMIT = 10;
+
 export default {
   name: 'PublicBrowse',
   components: {
@@ -344,10 +346,9 @@ export default {
       loading: false,
       error: null,
       canRetry: true,
-      // 文本预览
+      hasMore: true,
       textPreviewCache: {},
       hoverTimers: {},
-      hasMore: true,
       previewVisible: false,
       previewIndex: 0,
       observer: null,
@@ -478,6 +479,7 @@ export default {
     window.addEventListener('resize', this.updateColumnCount);
     window.addEventListener('resize', this.checkMobile);
     window.addEventListener('scroll', this.handleScroll);
+    document.addEventListener('pointerdown', this.handleSearchOutside);
   },
   beforeUnmount() {
     if (this.observer) {
@@ -486,6 +488,8 @@ export default {
     window.removeEventListener('resize', this.updateColumnCount);
     window.removeEventListener('resize', this.checkMobile);
     window.removeEventListener('scroll', this.handleScroll);
+    document.removeEventListener('pointerdown', this.handleSearchOutside);
+    Object.values(this.hoverTimers).forEach(timer => clearTimeout(timer));
   },
   methods: {
     // 搜索处理
@@ -555,6 +559,14 @@ export default {
         this.$nextTick(() => {
           this.$refs.searchInputRef?.focus();
         });
+      }
+    },
+
+    handleSearchOutside(event) {
+      if (!this.searchExpanded) return;
+      const searchBox = this.$refs.searchBoxRef;
+      if (searchBox && !searchBox.contains(event.target)) {
+        this.searchExpanded = false;
       }
     },
     
@@ -829,7 +841,8 @@ export default {
     },
 
     isTextFile(file) {
-      return checkIsTextFile(file.name);
+      const fileType = file.metadata?.FileType?.toLowerCase().split(';')[0].trim() || '';
+      return fileType.startsWith('text/') || checkIsTextFile(file.name);
     },
 
     handleFileHover(file) {
@@ -851,26 +864,40 @@ export default {
       const name = file.name;
       this.textPreviewCache[name] = { loading: true };
       try {
-        const res = await fetch(this.getFileUrl(name));
-        const text = await res.text();
-        const lines = text.split('\n').slice(0, 10).join('\n');
-        const lang = getLanguageFromExt(name);
+        const response = await fetch(this.getFileUrl(name), { credentials: 'include' });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const text = await response.text();
+        const preview = text.split('\n').slice(0, TEXT_PREVIEW_LINE_LIMIT).join('\n');
         let highlighted;
         try {
-          highlighted = hljs.highlight(lines, { language: lang }).value;
+          highlighted = hljs.highlight(preview, { language: getLanguageFromExt(name) }).value;
         } catch {
-          const div = document.createElement('div');
-          div.textContent = lines;
-          highlighted = div.innerHTML;
+          highlighted = this.escapeHtml(preview);
         }
-        this.textPreviewCache[name] = { loading: false, highlighted, hasMore: text.split('\n').length > 10 };
-      } catch {
+        this.textPreviewCache[name] = {
+          loading: false,
+          highlighted,
+          hasMore: text.split('\n').length > TEXT_PREVIEW_LINE_LIMIT
+        };
+      } catch (error) {
         this.textPreviewCache[name] = { loading: false, highlighted: '', error: true };
+        console.error('Failed to load public text preview:', error);
       }
     },
 
     openTextPreview(file) {
-      window.open(window.location.origin + '/preview/' + file.name, '_blank');
+      window.open(this.getPreviewUrl(file.name), '_blank', 'noopener');
+    },
+
+    getPreviewUrl(name) {
+      const encodedPath = name.split('/').map(part => encodeURIComponent(part)).join('/');
+      return `${window.location.origin}/preview/${encodedPath}`;
+    },
+
+    escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
     },
 
     getFileName(name) {
@@ -1244,7 +1271,6 @@ export default {
   justify-content: space-between;
   padding: 16px 24px;
   background: rgba(15, 15, 15, 0.95);
-  backdrop-filter: blur(10px);
   border-bottom: 1px solid #1a1a1a;
   position: relative;
 }
@@ -1267,112 +1293,110 @@ export default {
 
 /* 搜索框：默认只显示放大镜图标 */
 .search-box {
+  --search-control-size: 2.5rem;
+  --search-icon-size: 18px;
+  --search-icon-offset: 10px;
+  position: relative;
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  background: rgba(255,255,255,0.1);
-  border-radius: 50%;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  transition: all 0.3s ease;
+  gap: 6px;
+  width: var(--search-control-size);
+  height: var(--search-control-size);
+  box-sizing: border-box;
+  padding: 0 10px;
+  background-color: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: none;
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  overflow: hidden;
+  transition: width 0.22s ease, border-color 0.2s ease, background-color 0.2s ease;
+  will-change: width;
   cursor: pointer;
 }
 
+html.dark .search-box {
+  border-color: var(--glass-border);
+}
+
+.search-box:hover {
+  border-color: var(--glass-border-hover);
+}
+
+html.dark .search-box:hover {
+  border-color: var(--glass-border-hover);
+}
+
 .search-box .search-icon {
-  color: rgba(255,255,255,0.8);
+  position: absolute;
+  right: var(--search-icon-offset);
+  flex: 0 0 auto;
+  color: var(--theme-toggle-color);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .search-box .search-icon svg {
-  width: 14px;
-  height: 14px;
+  width: var(--search-icon-size);
+  height: var(--search-icon-size);
 }
 
 /* 搜索框展开状态 */
 .search-box.expanded {
-  width: auto;
-  min-width: 160px;
-  border-radius: 14px;
-  padding: 4px 10px;
-  background: rgba(30, 30, 30, 0.98);
-  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
-}
-
-.search-box.expanded .search-icon svg {
-  width: 12px;
-  height: 12px;
+  width: 180px;
+  padding-right: calc(var(--search-icon-offset) + var(--search-icon-size) + 6px);
 }
 
 .search-box.expanded .search-input {
-  width: 110px;
-  font-size: 12px;
+  flex: 1 1 auto;
+  width: 0;
+  min-width: 0;
 }
 
 .search-box:focus-within {
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+  border-color: color-mix(in srgb, var(--primary-color-accent) 72%, transparent);
 }
 
 .search-input {
   background: transparent;
   border: none;
   outline: none;
-  color: #fff;
+  color: var(--el-text-color-primary);
   font-size: 12px;
-  transition: width 0.3s;
 }
 
 .search-input::placeholder {
-  color: rgba(255,255,255,0.5);
+  color: var(--el-text-color-placeholder);
   font-size: 11px;
 }
 
-/* 主题切换按钮对齐 */
-.theme-toggle-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border-radius: 8px;
-  transition: background 0.2s;
-}
-
-.theme-toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-/* 手机端搜索框更小 */
 @media (max-width: 600px) {
   .header-right {
     gap: 8px;
   }
-  
+}
+
+/* 与主题按钮组件保持相同的移动端尺寸断点 */
+@media (max-width: 768px) {
   .search-box {
-    width: 26px;
-    height: 26px;
-  }
-  
-  .search-box .search-icon svg {
-    width: 12px;
-    height: 12px;
+    --search-control-size: 2rem;
+    --search-icon-size: 15px;
+    --search-icon-offset: 8px;
+    padding: 0 7px;
   }
   
   .search-box.expanded {
-    min-width: 140px;
-    padding: 3px 8px;
+    width: 150px;
   }
   
   .search-box.expanded .search-input {
-    width: 90px;
     font-size: 11px;
   }
   
-  .search-box.expanded .search-icon svg {
-    width: 11px;
-    height: 11px;
-  }
 }
 
 .header-center {
@@ -1436,7 +1460,7 @@ export default {
 .error-credit {
   margin-top: 40px;
   text-align: center;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--el-text-color-secondary);
   font-size: 14px;
 }
 
@@ -1454,7 +1478,7 @@ export default {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: rgba(255, 255, 255, 0.5);
+  color: #C8C9CC;
   text-decoration: none;
   transition: color 0.2s;
 }
@@ -1539,7 +1563,6 @@ export default {
 .folder-card:hover {
   background: #1a1a1a;
   border-color: #333;
-  transform: translateY(-2px);
 }
 
 .folder-icon {
@@ -1590,7 +1613,7 @@ export default {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, #141414 25%, #1a1a1a 50%, #141414 75%);
+  background: #1a1a1a;
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   z-index: 1;
@@ -1624,7 +1647,7 @@ export default {
 .overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(transparent 50%, rgba(0,0,0,0.85));
+  background: rgba(0,0,0,0.5);
   opacity: 0;
   transition: opacity 0.2s;
   display: flex;
@@ -1659,7 +1682,7 @@ export default {
 
 .file-name {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+  color: #FAFAFA;
   text-align: center;
   word-break: break-all;
   max-width: 100%;
@@ -1677,7 +1700,7 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  background: #16213e;
   gap: 12px;
   padding: 16px;
   box-sizing: border-box;
@@ -1686,12 +1709,12 @@ export default {
 .audio-icon {
   width: 48px;
   height: 48px;
-  color: rgba(255, 255, 255, 0.6);
+  color: #C8C9CC;
 }
 
 .audio-name {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+  color: #FAFAFA;
   text-align: center;
   word-break: break-all;
   max-width: 100%;
@@ -1713,13 +1736,12 @@ export default {
   border: none;
   border-radius: 50%;
   background: rgba(255,255,255,0.08);
-  backdrop-filter: blur(8px);
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,0.6);
+  color: #C8C9CC;
 }
 
 .action-btn svg {
@@ -1748,7 +1770,7 @@ export default {
   bottom: 24px;
   right: 24px;
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
   color: rgba(255, 255, 255, 0.85);
   padding: 6px 12px;
   border-radius: 16px;
@@ -1859,7 +1881,7 @@ export default {
 
 .swipe-hint {
   font-size: 12px;
-  color: rgba(255,255,255,0.4);
+  color: var(--el-text-color-secondary);
 }
 
 /* 手机端其他文件预览 */
@@ -1870,7 +1892,7 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.6);
+  color: #C8C9CC;
   gap: 16px;
 }
 
@@ -1881,7 +1903,7 @@ export default {
 
 .other-file-preview .file-name {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.7);
+  color: #FAFAFA;
   text-align: center;
   padding: 0 20px;
   word-break: break-all;
@@ -1951,6 +1973,7 @@ export default {
   left: 50%;
   transform: translateX(-50%);
   background: rgba(0,0,0,0.6);
+  border: 1px solid var(--glass-border);
   color: rgba(255,255,255,0.8);
   padding: 8px 16px;
   border-radius: 20px;
@@ -2162,45 +2185,20 @@ export default {
 }
 
 :root:not(.dark) .file-count {
-  color: #999;
-}
-
-:root:not(.dark) .search-box {
-  background: rgba(0,0,0,0.08);
-}
-
-:root:not(.dark) .search-box.expanded {
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-}
-
-:root:not(.dark) .search-box.expanded .search-input {
-  color: #333;
-}
-
-:root:not(.dark) .search-box.expanded .search-input::placeholder {
-  color: rgba(0,0,0,0.4);
-}
-
-:root:not(.dark) .search-box .search-icon {
-  color: rgba(0,0,0,0.6);
-}
-
-:root:not(.dark) .search-box .search-icon:hover {
-  color: #333;
+  color: var(--el-text-color-secondary);
 }
 
 :root:not(.dark) .loading-container,
 :root:not(.dark) .error-container {
-  color: #999;
+  color: var(--el-text-color-secondary);
 }
 
 :root:not(.dark) .error-credit {
-  color: rgba(0, 0, 0, 0.4);
+  color: #4E5969;
 }
 
 :root:not(.dark) .error-credit-links a {
-  color: rgba(0, 0, 0, 0.5);
+  color: #1D2129;
 }
 
 :root:not(.dark) .loading-spinner {
@@ -2224,7 +2222,7 @@ export default {
 }
 
 :root:not(.dark) .folder-icon {
-  color: #999;
+  color: var(--el-text-color-secondary);
 }
 
 :root:not(.dark) .folder-name {
@@ -2237,7 +2235,7 @@ export default {
 }
 
 :root:not(.dark) .image-wrapper::before {
-  background: linear-gradient(90deg, #f5f5f5 25%, #fff 50%, #f5f5f5 75%);
+  background: var(--el-border-color-lighter);
 }
 
 :root:not(.dark) .image-wrapper:hover {
@@ -2246,23 +2244,23 @@ export default {
 
 :root:not(.dark) .file-placeholder {
   background: #f5f5f5;
-  color: #999;
+  color: var(--el-text-color-secondary);
 }
 
 :root:not(.dark) .file-name {
-  color: rgba(0, 0, 0, 0.6);
+  color: #1D2129;
 }
 
 :root:not(.dark) .audio-placeholder {
-  background: linear-gradient(135deg, #e8f4f8 0%, #d4e5f7 100%);
+  background: #EFF6FF;
 }
 
 :root:not(.dark) .audio-icon {
-  color: rgba(0, 0, 0, 0.4);
+  color: #4E5969;
 }
 
 :root:not(.dark) .audio-name {
-  color: rgba(0, 0, 0, 0.6);
+  color: #1D2129;
 }
 
 :root:not(.dark) .no-more {
@@ -2278,36 +2276,96 @@ export default {
 }
 
 :root:not(.dark) .loading-more {
-  color: #999;
-}
-
-:root:not(.dark) .theme-toggle-btn:hover {
-  background: rgba(0, 0, 0, 0.08);
+  color: var(--el-text-color-secondary);
 }
 
 :root:not(.dark) .floating-page-indicator {
-  background: rgba(255, 255, 255, 0.85);
-  color: rgba(0, 0, 0, 0.7);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: color-mix(in srgb, var(--el-fill-color-blank) 85%, transparent);
+  color: var(--el-text-color-primary);
+  box-shadow: none;
 }
 
-/* 文本文件预览样式 */
 .text-file-item { cursor: pointer; }
 .text-file-item:hover { transform: translateY(-2px); }
-.image-wrapper.text-preview { min-height: 200px; background: #1a1a1a; border: 1px solid #333; }
-.text-file-preview { width: 100%; display: flex; flex-direction: column; padding: 8px; }
-.text-file-header { display: flex; align-items: center; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid #333; margin-bottom: 6px; }
+.image-wrapper.text-preview {
+  min-height: 200px;
+  background: #1a1a1a;
+  border-color: #333;
+}
+.image-wrapper.text-preview::before { display: none; }
+.text-file-preview {
+  width: 100%;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  box-sizing: border-box;
+}
+.text-file-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #333;
+  margin-bottom: 6px;
+}
 .text-file-header svg { flex-shrink: 0; color: #8b949e; }
-.text-file-name { color: #58a6ff; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.text-preview-code { position: relative; overflow: hidden; max-height: 160px; }
-.text-preview-code pre { margin: 0; font-size: 11px; font-family: 'Consolas', 'Monaco', monospace; line-height: 1.5; overflow: hidden; text-align: left; }
-.text-preview-code code { color: #c9d1d9; text-align: left; display: block; white-space: pre; }
-.text-preview-code .hljs { background: transparent !important; padding: 0 !important; text-align: left; white-space: pre; display: block; }
-.text-preview-fade { position: absolute; bottom: 20px; left: 0; right: 0; height: 40px; background: linear-gradient(transparent, #1a1a1a); pointer-events: none; }
-.text-preview-more { position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font-size: 12px; color: #58a6ff; padding: 2px 0; background: #1a1a1a; }
-.text-preview-placeholder { padding: 30px; text-align: center; color: #8b949e; font-style: italic; font-size: 13px; }
-
-/* 亮色主题 */
+.text-file-name {
+  color: #58a6ff;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.text-preview-code {
+  position: relative;
+  overflow: hidden;
+  max-height: 160px;
+}
+.text-preview-code pre {
+  margin: 0;
+  font-size: 11px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  line-height: 1.5;
+  overflow: hidden;
+  text-align: left;
+}
+.text-preview-code code,
+.text-preview-code .hljs {
+  color: #c9d1d9;
+  text-align: left;
+  display: block;
+  white-space: pre;
+  background: transparent !important;
+  padding: 0 !important;
+}
+.text-preview-fade {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(transparent, #1a1a1a);
+  pointer-events: none;
+}
+.text-preview-more {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12px;
+  color: #58a6ff;
+  padding: 2px 0;
+  background: #1a1a1a;
+}
+.text-preview-placeholder {
+  padding: 30px;
+  text-align: center;
+  color: #8b949e;
+  font-style: italic;
+  font-size: 13px;
+}
 :root:not(.dark) .image-wrapper.text-preview { background: #fff; border-color: #e1e4e8; }
 :root:not(.dark) .text-file-header { border-color: #e1e4e8; }
 :root:not(.dark) .text-file-name { color: #0366d6; }

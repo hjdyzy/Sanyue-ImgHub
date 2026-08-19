@@ -11,7 +11,7 @@
                 <font-awesome-icon icon="ban" style="margin-right: 3px;"></font-awesome-icon> {{ $t('fileDetail.blacklist') }}
             </el-button>
             <el-button type="primary" @click="$emit('white')" round size="small" class="detail-action" v-if="!isEditing">
-                <font-awesome-icon icon="user-plus" style="margin-right: 3px;"></font-awesome-icon> {{ $t('fileDetail.whitelist') }}
+                <font-awesome-icon icon="shield-alt" style="margin-right: 3px;"></font-awesome-icon> {{ $t('fileDetail.whitelist') }}
             </el-button>
             <el-button type="danger" @click="$emit('delete')" round size="small" class="detail-action" v-if="!isEditing">
                 <font-awesome-icon icon="trash-alt" style="margin-right: 3px;"></font-awesome-icon> {{ $t('fileDetail.deleteBtn') }}
@@ -85,7 +85,7 @@
                     <span>{{ file?.metadata?.Width }} × {{ file?.metadata?.Height }}</span>
                     <el-tag size="small" type="info" style="display: inline-flex; align-items: center; justify-content: center;">{{ orientationIcon }}</el-tag>
                 </div>
-                <span v-else style="color: #909399;">{{ $t('fileDetail.noDimensions') }}</span>
+                <span v-else style="color: var(--el-text-color-secondary);">{{ $t('fileDetail.noDimensions') }}</span>
             </el-descriptions-item>
             <el-descriptions-item :label="$t('fileDetail.uploadTimeLabel')">{{ uploadTime }}</el-descriptions-item>
             <el-descriptions-item :label="$t('fileDetail.channelTypeAndName')">
@@ -102,7 +102,7 @@
                 <div v-if="file?.metadata?.Tags && file?.metadata?.Tags.length > 0" style="display: flex; flex-wrap: wrap; gap: 5px;">
                     <el-tag v-for="tag in file?.metadata?.Tags" :key="tag" size="small">{{ tag }}</el-tag>
                 </div>
-                <span v-else style="color: #909399;">{{ $t('fileDetail.noTags') }}</span>
+                <span v-else style="color: var(--el-text-color-secondary);">{{ $t('fileDetail.noTags') }}</span>
             </el-descriptions-item>
         </el-descriptions>
         <!-- 重命名弹窗 -->
@@ -112,7 +112,7 @@
             :width="dialogWidth"
             append-to-body
         >
-            <el-form @submit.prevent>
+            <el-form @submit.prevent="submitRename">
                 <el-form-item :label="$t('fileDetail.renameLabel')" :error="renameValidation.error">
                     <el-input
                         v-model="renameForm.newFileId"
@@ -281,9 +281,7 @@ export default {
         },
         openImageLink() {
             if (this.fileLink) {
-                // 移除 ?from=admin 参数
-                const cleanUrl = this.fileLink.replace(/\?from=admin$/, '');
-                window.open(cleanUrl, '_blank');
+                window.open(this.fileLink, '_blank');
             }
         },
         startEdit() {
@@ -343,6 +341,8 @@ export default {
             };
         },
         async submitRename() {
+            if (this.renameSaving) return;
+
             // Validate input first
             this.validateRenameInput();
             if (!this.renameValidation.valid) {
@@ -433,6 +433,7 @@ export default {
     margin-bottom: 15px;
     padding: 12px;
     background: var(--el-fill-color-light);
+    border: 1px solid var(--glass-border);
     border-radius: 8px;
     min-height: 60px;
 }

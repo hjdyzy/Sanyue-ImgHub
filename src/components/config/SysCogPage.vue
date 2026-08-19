@@ -4,7 +4,16 @@
         <div v-for="(categoryGroup, categoryName) in groupedSettings" :key="categoryName" class="first-settings">
             <h3 class="first-title">{{ categoryName }}</h3>
             <el-form :model="settings" label-width="150px">
-                <el-form-item v-for="(setting, index) in categoryGroup" :key="setting.id">
+                <el-form-item
+                    v-for="(setting, index) in categoryGroup"
+                    :key="setting.id"
+                    :class="{
+                        'announcement-manual-height': setting.id === 'announcement'
+                            && announcementManualHeight !== null
+                    }"
+                    :style="setting.id === 'announcement' && announcementManualHeight !== null
+                        ? { '--announcement-manual-height': `${announcementManualHeight}px` }
+                        : undefined">
                     <template #label>
                         {{ localized(setting, 'label') }}
                         <el-tooltip v-if="setting.tooltip" :content="localized(setting, 'tooltip')" placement="top" raw-content>
@@ -32,9 +41,23 @@
                     <!-- 如果是boolean类型则使用切换按钮 -->
                     <el-switch v-else-if="setting.type === 'boolean'" v-model="setting.value" :disabled="setting.fixed"></el-switch>
                     <!-- 如果是textarea类型则使用可拖拽文本域 -->
-                    <el-input v-else-if="setting.type === 'textarea'" v-model="setting.value" type="textarea" :autosize="{ minRows: 2 }" resize="vertical" :disabled="setting.fixed" :placeholder="localized(setting, 'placeholder')"></el-input>
+                    <el-input
+                        v-else-if="setting.type === 'textarea'"
+                        v-model="setting.value"
+                        type="textarea"
+                        :autosize="{ minRows: 2, maxRows: setting.id === 'announcement' ? 8 : undefined }"
+                        resize="vertical"
+                        :disabled="setting.fixed"
+                        :placeholder="localized(setting, 'placeholder')"
+                        @mousedown="handleAnnouncementResizeStart($event, setting)">
+                    </el-input>
                     <!-- 否则使用输入框 -->
                     <el-input v-else v-model="setting.value" :disabled="setting.fixed" :placeholder="localized(setting, 'placeholder')"></el-input>
+                    <div v-if="setting.id === 'announcement'" class="announcement-refresh-option">
+                        <el-checkbox v-model="refreshAnnouncement">
+                            {{ $t('sysPage.refreshAnnouncement') }}
+                        </el-checkbox>
+                    </div>
                 </el-form-item>
             </el-form>
         </div>
@@ -61,6 +84,11 @@ data() {
         },
         // 加载状态
         loading: true,
+        // 即使公告内容未变化，也在本次保存时刷新公告已读状态
+        refreshAnnouncement: false,
+        // 公告文本域手动拖拽后的高度
+        announcementManualHeight: null,
+        announcementResizeMouseUpHandler: null,
         // 可用渠道列表
         availableChannels: {}
     };
@@ -118,15 +146,55 @@ methods: {
         if (this.isEn && option.label_en) return option.label_en;
         return option.label;
     },
+    handleAnnouncementResizeStart(event, setting) {
+        if (setting.id !== 'announcement') return;
+
+        const textarea = event.target.closest?.('textarea');
+        if (!textarea) return;
+
+        const rect = textarea.getBoundingClientRect();
+        const resizeHandleSize = 24;
+        const isResizeHandle = event.clientX >= rect.right - resizeHandleSize
+            && event.clientY >= rect.bottom - resizeHandleSize;
+        if (!isResizeHandle) return;
+
+        const formItem = textarea.closest('.el-form-item');
+        if (this.announcementResizeMouseUpHandler) {
+            window.removeEventListener('mouseup', this.announcementResizeMouseUpHandler);
+        }
+
+        const startHeight = textarea.offsetHeight;
+        textarea.style.height = `${startHeight}px`;
+        formItem?.classList.remove('announcement-manual-height');
+        this.announcementResizeMouseUpHandler = () => {
+            const resizedHeight = textarea.offsetHeight;
+            const manualHeight = Math.abs(resizedHeight - startHeight) > 1
+                ? resizedHeight
+                : this.announcementManualHeight;
+            if (manualHeight !== null) {
+                this.announcementManualHeight = manualHeight;
+                formItem?.style.setProperty('--announcement-manual-height', `${manualHeight}px`);
+                formItem?.classList.add('announcement-manual-height');
+            }
+            this.announcementResizeMouseUpHandler = null;
+        };
+        window.addEventListener('mouseup', this.announcementResizeMouseUpHandler, { once: true });
+    },
     saveSettings() {
         fetchWithAuth('/api/manage/sysConfig/page', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(this.settings)
+            body: JSON.stringify({
+                ...this.settings,
+                refreshAnnouncement: this.refreshAnnouncement
+            })
         })
-        .then(() => this.$message.success(this.$t('sysPage.settingsSaved')));
+        .then(() => {
+            this.refreshAnnouncement = false;
+            this.$message.success(this.$t('sysPage.settingsSaved'));
+        });
     },
     // 获取可用渠道列表
     async fetchAvailableChannels() {
@@ -138,6 +206,11 @@ methods: {
         } catch (error) {
             console.error('Failed to fetch available channels:', error);
         }
+    }
+},
+beforeUnmount() {
+    if (this.announcementResizeMouseUpHandler) {
+        window.removeEventListener('mouseup', this.announcementResizeMouseUpHandler);
     }
 },
 mounted() {
@@ -201,21 +274,15 @@ mounted() {
     border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-/* 表单样式 - 上下排列左对齐 */
+/* 表单样式 - 上下排列左对齐(对齐系统状态卡片风格,无 hover 动效) */
 .first-settings :deep(.el-form) {
-    padding: 16px 20px;
-    background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-radius: 12px;
+    padding: 20px 24px;
+    background-color: var(--glass-bg) !important;
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border-radius: 16px;
     border: 1px solid var(--glass-border);
     box-shadow: var(--glass-shadow);
-    transition: all 0.3s ease;
-}
-
-.first-settings :deep(.el-form:hover) {
-    box-shadow: var(--glass-shadow-hover);
-    background: var(--glass-bg-hover);
 }
 
 .first-settings :deep(.el-form-item) {
@@ -260,6 +327,22 @@ mounted() {
 
 .first-settings :deep(.el-switch) {
     --el-switch-on-color: var(--el-color-primary);
+}
+
+.announcement-manual-height :deep(.el-textarea__inner) {
+    height: var(--announcement-manual-height) !important;
+}
+
+.announcement-refresh-option {
+    width: 100%;
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.first-settings :deep(.el-form-item:has(.announcement-refresh-option) .el-form-item__content) {
+    flex-direction: column;
+    align-items: flex-start;
 }
 
 /* 移动端适配 */

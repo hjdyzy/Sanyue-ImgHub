@@ -12,7 +12,10 @@
                 label-width="120px"
             >
                 <el-form-item :label="$t('sysSecurity.uploadPassword')" prop="authCode">
-                    <el-input v-model="authSettings.user.authCode" type="password" show-password @input="handleUserPassInput" autocomplete="new-password"/>
+                    <div style="display: flex; gap: 8px; width: 100%;">
+                        <el-input v-model="authSettings.user.authCode" type="password" show-password @input="handleUserPassInput" autocomplete="new-password" :placeholder="authSettings.user._hasPassword ? $t('sysSecurity.passwordUnchanged') : ''" :disabled="clearUserPassword"/>
+                        <el-checkbox v-if="authSettings.user._hasPassword" v-model="clearUserPassword" @change="handleClearUserPassword">{{ $t('sysSecurity.clearPassword') }}</el-checkbox>
+                    </div>
                 </el-form-item>
 
                 <transition name="fade-slide" mode="out-in">
@@ -30,10 +33,13 @@
                 label-width="120px"
             >
                 <el-form-item :label="$t('sysSecurity.adminUsername')" prop="adminUsername">
-                    <el-input v-model="authSettings.admin.adminUsername" autocomplete="new-password"/>
+                    <el-input v-model="authSettings.admin.adminUsername" autocomplete="new-password" :disabled="clearAdminPassword"/>
                 </el-form-item>
                 <el-form-item :label="$t('sysSecurity.adminPassword')" prop="adminPassword">
-                    <el-input v-model="authSettings.admin.adminPassword" type="password" show-password @input="handleAdminPassInput" autocomplete="new-password"/>
+                    <div style="display: flex; gap: 8px; width: 100%;">
+                        <el-input v-model="authSettings.admin.adminPassword" type="password" show-password @input="handleAdminPassInput" autocomplete="new-password" :placeholder="authSettings.admin._hasPassword ? $t('sysSecurity.passwordUnchanged') : ''" :disabled="clearAdminPassword"/>
+                        <el-checkbox v-if="authSettings.admin._hasPassword" v-model="clearAdminPassword" @change="handleClearAdminPassword">{{ $t('sysSecurity.clearPassword') }}</el-checkbox>
+                    </div>
                 </el-form-item>
 
                 <transition name="fade-slide" mode="out-in">
@@ -141,6 +147,109 @@
                     <el-input v-model="uploadSettings.moderate.nsfwApiPath" placeholder="https://nsfwjs.your.domain"/>
                 </el-form-item>
             </el-form>
+
+            <h4 class="second-title">{{ $t('sysSecurity.ipQuery') }}
+                <el-tooltip :content="$t('sysSecurity.ipQueryTooltip')" placement="top">
+                    <font-awesome-icon icon="question-circle" style="margin-left: 5px; cursor: pointer;"/>
+                </el-tooltip>
+            </h4>
+            <el-form :model="uploadSettings.ipQuery" label-width="120px">
+                <el-form-item :label="$t('sysSecurity.enableIpQuery')">
+                    <el-switch v-model="uploadSettings.ipQuery.enabled"/>
+                </el-form-item>
+                <el-form-item :label="$t('sysSecurity.ipQueryChannel')">
+                    <el-select v-model="uploadSettings.ipQuery.channel" :placeholder="$t('sysSecurity.ipQueryChannelPlaceholder')">
+                        <el-option :label="$t('sysSecurity.customApi')" value="customApi"></el-option>
+                    </el-select>
+                </el-form-item>
+                <template v-if="uploadSettings.ipQuery.channel === 'customApi'">
+                    <el-form-item :label="$t('sysSecurity.apiPath')">
+                        <el-input
+                            v-model="uploadSettings.ipQuery.customApi.url"
+                            placeholder="https://api.example.com/ip"
+                        />
+                    </el-form-item>
+                    <el-form-item :label="$t('sysSecurity.queryParams')">
+                        <div class="query-param-list">
+                            <div
+                                v-for="(param, index) in uploadSettings.ipQuery.customApi.params"
+                                :key="index"
+                                class="query-param-row"
+                            >
+                                <el-input
+                                    v-model="param.key"
+                                    :placeholder="$t('sysSecurity.paramNamePlaceholder')"
+                                />
+                                <el-input
+                                    v-model="param.value"
+                                    :placeholder="$t('sysSecurity.paramValuePlaceholder')"
+                                />
+                                <el-button
+                                    type="danger"
+                                    plain
+                                    circle
+                                    @click="removeIpQueryParam(index)"
+                                    :disabled="uploadSettings.ipQuery.customApi.params.length <= 1"
+                                >
+                                    <font-awesome-icon icon="trash-alt"/>
+                                </el-button>
+                            </div>
+                            <el-button type="primary" plain @click="addIpQueryParam">
+                                <font-awesome-icon icon="plus"/>
+                                <span>{{ $t('sysSecurity.addQueryParam') }}</span>
+                            </el-button>
+                        </div>
+                    </el-form-item>
+                    <el-form-item>
+                        <template #label>
+                            {{ $t('sysSecurity.responseFields') }}
+                            <el-tooltip :content="$t('sysSecurity.responseFieldsTip')" placement="top">
+                                <font-awesome-icon icon="question-circle" style="margin-left: 5px; cursor: pointer;"/>
+                            </el-tooltip>
+                        </template>
+                        <div class="query-param-list">
+                            <div
+                                v-for="(field, index) in uploadSettings.ipQuery.customApi.responseFields"
+                                :key="index"
+                                class="response-field-row"
+                            >
+                                <el-input
+                                    v-model="uploadSettings.ipQuery.customApi.responseFields[index]"
+                                    :placeholder="$t('sysSecurity.responseFieldPathPlaceholder')"
+                                />
+                                <el-button
+                                    plain
+                                    circle
+                                    @click="moveIpQueryResponseField(index, -1)"
+                                    :disabled="index === 0"
+                                >
+                                    <font-awesome-icon icon="arrow-up"/>
+                                </el-button>
+                                <el-button
+                                    plain
+                                    circle
+                                    @click="moveIpQueryResponseField(index, 1)"
+                                    :disabled="index === uploadSettings.ipQuery.customApi.responseFields.length - 1"
+                                >
+                                    <font-awesome-icon icon="arrow-down"/>
+                                </el-button>
+                                <el-button
+                                    type="danger"
+                                    plain
+                                    circle
+                                    @click="removeIpQueryResponseField(index)"
+                                >
+                                    <font-awesome-icon icon="trash-alt"/>
+                                </el-button>
+                            </div>
+                            <el-button type="primary" plain @click="addIpQueryResponseField">
+                                <font-awesome-icon icon="plus"/>
+                                <span>{{ $t('sysSecurity.addResponseField') }}</span>
+                            </el-button>
+                        </div>
+                    </el-form-item>
+                </template>
+            </el-form>
         </div>
 
         <!-- 一级设置：访问管理 -->
@@ -159,7 +268,7 @@
                 </el-form-item>
             </el-form>
             <h4 class="second-title">{{ $t('sysSecurity.whiteListMode') }}</h4>
-            <el-form :model="accessSettings" label-width="120px">
+            <el-form :model="accessSettings" :rules="accessRules" ref="accessForm" label-width="120px">
                 <el-form-item>
                     <template #label>
                         {{ $t('sysSecurity.enableWhiteList') }}
@@ -168,6 +277,67 @@
                         </el-tooltip>
                     </template>
                     <el-switch v-model="accessSettings.whiteListMode"/>
+                </el-form-item>
+            </el-form>
+            <h4 class="second-title">{{ $t('sysSecurity.imageTransform') }}</h4>
+            <el-form :model="accessSettings" :rules="accessRules" ref="imageTransformForm" label-width="120px">
+                <el-form-item>
+                    <template #label>
+                        {{ $t('sysSecurity.enableImageTransform') }}
+                        <el-tooltip :content="$t('sysSecurity.enableImageTransformTooltip')" placement="top" raw-content>
+                            <font-awesome-icon icon="question-circle" style="margin-left: 5px; cursor: pointer;"/>
+                        </el-tooltip>
+                    </template>
+                    <el-switch v-model="accessSettings.imageTransformEnabled"/>
+                </el-form-item>
+                <el-form-item
+                    v-if="accessSettings.imageTransformEnabled"
+                    prop="imageTransformAllowedSizes"
+                >
+                    <template #label>
+                        {{ $t('sysSecurity.imageTransformAllowedSizes') }}
+                        <el-tooltip :content="$t('sysSecurity.imageTransformAllowedSizesHint')" placement="top" raw-content>
+                            <font-awesome-icon icon="question-circle" style="margin-left: 5px; cursor: pointer;"/>
+                        </el-tooltip>
+                    </template>
+                    <el-input
+                        v-model="accessSettings.imageTransformAllowedSizes"
+                        :placeholder="$t('sysSecurity.imageTransformAllowedSizesPlaceholder')"
+                    />
+                </el-form-item>
+            </el-form>
+            <h4 class="second-title">{{ $t('sysSecurity.sessionSecurityPolicy') }}</h4>
+            <el-form :model="accessSettings" label-width="120px">
+                <el-form-item>
+                    <template #label>
+                        {{ $t('sysSecurity.secureMode') }}
+                        <el-tooltip :content="$t('sysSecurity.secureModeTooltip')" placement="top">
+                            <font-awesome-icon icon="question-circle" style="margin-left: 5px; cursor: pointer;"/>
+                        </el-tooltip>
+                    </template>
+                    <el-switch v-model="accessSettings.sessionSecure"/>
+                </el-form-item>
+                <el-form-item :label="$t('sysSecurity.userSessionMaxAge')" prop="userSessionMaxAge">
+                    <el-input-number
+                        v-model="accessSettings.userSessionMaxAge"
+                        :min="1"
+                        :max="3650"
+                        :step="1"
+                        :precision="0"
+                        controls-position="right"
+                    />
+                    <span class="form-item-hint">{{ $t('sysSecurity.sessionMaxAgeUnit') }}</span>
+                </el-form-item>
+                <el-form-item :label="$t('sysSecurity.adminSessionMaxAge')" prop="adminSessionMaxAge">
+                    <el-input-number
+                        v-model="accessSettings.adminSessionMaxAge"
+                        :min="1"
+                        :max="3650"
+                        :step="1"
+                        :precision="0"
+                        controls-position="right"
+                    />
+                    <span class="form-item-hint">{{ $t('sysSecurity.sessionMaxAgeUnit') }}</span>
                 </el-form-item>
             </el-form>
         </div>
@@ -294,7 +464,16 @@ data() {
             admin: {}
         },
         uploadSettings: {
-            moderate: {}
+            moderate: {},
+            ipQuery: {
+                enabled: false,
+                channel: 'customApi',
+                customApi: {
+                    url: '',
+                    params: [{ key: 'ip', value: '{ip}' }],
+                    responseFields: []
+                }
+            }
         },
         accessSettings: {},
         apiTokens: [], // API Token列表
@@ -308,6 +487,8 @@ data() {
 
         showUserPassConfirm: false, // 显示用户密码确认框
         showAdminPassConfirm: false, // 显示管理密码确认框
+        clearUserPassword: false, // 清除用户密码开关
+        clearAdminPassword: false, // 清除管理密码开关
 
         // Token对话框相关
         showCreateTokenDialog: false,
@@ -392,6 +573,46 @@ computed: {
             ]
         };
     },
+    accessRules() {
+        const validateSessionMaxAge = (rule, value, callback) => {
+            if (!Number.isInteger(value) || value < 1 || value > 3650) {
+                callback(new Error(this.$t('sysSecurity.sessionMaxAgeInvalid')));
+            } else {
+                callback();
+            }
+        };
+        const validateImageTransformAllowedSizes = (rule, value, callback) => {
+            if (!this.accessSettings.imageTransformEnabled || !value || !value.trim()) {
+                callback();
+                return;
+            }
+
+            const sizes = value.split(',').map(size => size.trim().toLowerCase()).filter(Boolean);
+            const valid = sizes.every(size => {
+                const match = size.match(/^(auto|[1-9]\d*)x(auto|[1-9]\d*)$/);
+                if (!match || (match[1] === 'auto' && match[2] === 'auto')) return false;
+                return match.slice(1).every(dimension => dimension === 'auto' || Number(dimension) <= 4096);
+            });
+
+            if (!valid) {
+                callback(new Error(this.$t('sysSecurity.imageTransformAllowedSizesInvalid')));
+            } else {
+                callback();
+            }
+        };
+
+        return {
+            userSessionMaxAge: [
+                { validator: validateSessionMaxAge, trigger: 'change' }
+            ],
+            adminSessionMaxAge: [
+                { validator: validateSessionMaxAge, trigger: 'change' }
+            ],
+            imageTransformAllowedSizes: [
+                { validator: validateImageTransformAllowedSizes, trigger: ['blur', 'change'] }
+            ]
+        };
+    },
     tokenRules() {
         return {
             name: [
@@ -429,6 +650,56 @@ computed: {
     },
 },
 methods: {
+    normalizeIpQuerySettings(settings = {}) {
+        const ipQuery = settings.ipQuery || {};
+        const customApi = ipQuery.customApi || {};
+        const params = Array.isArray(customApi.params) && customApi.params.length > 0
+            ? customApi.params.map(param => ({
+                key: param?.key || '',
+                value: param?.value || ''
+            }))
+            : [{ key: 'ip', value: '{ip}' }];
+        const responseFields = Array.isArray(customApi.responseFields)
+            ? customApi.responseFields.map(field => {
+                if (typeof field === 'string') return field;
+                return field?.path || '';
+            })
+            : [];
+
+        return {
+            ...settings,
+            moderate: settings.moderate || {},
+            ipQuery: {
+                enabled: ipQuery.enabled ?? false,
+                channel: ipQuery.channel || 'customApi',
+                customApi: {
+                    url: customApi.url || '',
+                    params,
+                    responseFields
+                }
+            }
+        };
+    },
+    addIpQueryParam() {
+        this.uploadSettings.ipQuery.customApi.params.push({ key: '', value: '' });
+    },
+    removeIpQueryParam(index) {
+        if (this.uploadSettings.ipQuery.customApi.params.length <= 1) return;
+        this.uploadSettings.ipQuery.customApi.params.splice(index, 1);
+    },
+    addIpQueryResponseField() {
+        this.uploadSettings.ipQuery.customApi.responseFields.push('');
+    },
+    removeIpQueryResponseField(index) {
+        this.uploadSettings.ipQuery.customApi.responseFields.splice(index, 1);
+    },
+    moveIpQueryResponseField(index, direction) {
+        const fields = this.uploadSettings.ipQuery.customApi.responseFields;
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= fields.length) return;
+        const [field] = fields.splice(index, 1);
+        fields.splice(targetIndex, 0, field);
+    },
     handleUserPassInput() {
         if (this.authSettings.user.authCode !== this.oriUserPassword) {
             this.showUserPassConfirm = true;
@@ -440,6 +711,19 @@ methods: {
         if (this.authSettings.admin.adminPassword !== this.oriAdminPassword) {
             this.showAdminPassConfirm = true;
         } else {
+            this.showAdminPassConfirm = false;
+        }
+    },
+    handleClearUserPassword(checked) {
+        if (checked) {
+            this.authSettings.user.authCode = '';
+            this.showUserPassConfirm = false;
+        }
+    },
+    handleClearAdminPassword(checked) {
+        if (checked) {
+            this.authSettings.admin.adminPassword = '';
+            this.authSettings.admin.adminUsername = '';
             this.showAdminPassConfirm = false;
         }
     },
@@ -646,11 +930,35 @@ methods: {
             });
         }));
 
+        // 验证会话安全策略表单
+        validationPromises.push(new Promise((resolve) => {
+            this.$refs.accessForm.validate((valid) => {
+                resolve(valid);
+            });
+        }));
+
+        validationPromises.push(new Promise((resolve) => {
+            this.$refs.imageTransformForm.validate((valid) => {
+                resolve(valid);
+            });
+        }));
+
         // 等待所有验证完成
         Promise.all(validationPromises).then((results) => {
             const isValid = results.every(valid => valid);
 
             if (!isValid) {
+                return;
+            }
+
+            // 验证会话有效期为 1-3650 的正整数
+            if (this.accessSettings.userSessionMaxAge < 1 ||
+                !Number.isInteger(this.accessSettings.userSessionMaxAge) ||
+                this.accessSettings.userSessionMaxAge > 3650 ||
+                this.accessSettings.adminSessionMaxAge < 1 ||
+                !Number.isInteger(this.accessSettings.adminSessionMaxAge) ||
+                this.accessSettings.adminSessionMaxAge > 3650) {
+                this.$message.error(this.$t('sysSecurity.sessionMaxAgeInvalid'));
                 return;
             }
 
@@ -663,19 +971,57 @@ methods: {
             delete settings.auth.user.confirmNewUserPassword;
             delete settings.auth.admin.confirmNewAdminPassword;
 
+            // 标记清除密码
+            if (this.clearUserPassword) {
+                settings.auth.user._clear = true;
+                settings.auth.user.authCode = '';
+            }
+            if (this.clearAdminPassword) {
+                settings.auth.admin._clear = true;
+                settings.auth.admin.adminPassword = '';
+            }
+
             fetchWithAuth('/api/manage/sysConfig/security', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(settings)
-            }).then(() => {
+            }).then(res => res.json()).then((data) => {
+                // 管理端密码变更后，当前会话已被清除，需要重新登录
+                if (data.adminPasswordChanged) {
+                    const msg = this.$t('sysSecurity.adminPasswordChangedRelogin');
+                    this.$message.warning(msg);
+                    setTimeout(() => {
+                        this.$store.commit('setAdminLoggedIn', false);
+                        this.$router.push('/adminLogin');
+                    }, 1500);
+                    return;
+                }
+
                 this.$message.success(this.$t('sysSecurity.settingsSaved'));
-                // 更新原密码
-                this.oriUserPassword = this.authSettings.user.authCode;
-                this.oriAdminPassword = this.authSettings.admin.adminPassword;
+                // 保存成功后重置密码字段为空（后端已处理）
+                this.authSettings.user.authCode = '';
+                this.authSettings.admin.adminPassword = '';
+                this.oriUserPassword = '';
+                this.oriAdminPassword = '';
+                // 标记已有密码（如果用户刚设置了密码，且不是清除操作）
+                if (settings.auth.user.authCode && !settings.auth.user._clear) {
+                    this.authSettings.user._hasPassword = true;
+                } else if (settings.auth.user._clear) {
+                    this.authSettings.user._hasPassword = false;
+                }
+                if (settings.auth.admin.adminPassword && !settings.auth.admin._clear) {
+                    this.authSettings.admin._hasPassword = true;
+                } else if (settings.auth.admin._clear) {
+                    this.authSettings.admin._hasPassword = false;
+                }
                 this.showUserPassConfirm = false;
                 this.showAdminPassConfirm = false;
+                this.clearUserPassword = false;
+                this.clearAdminPassword = false;
+            }).catch(() => {
+                // 如果请求过程中 session 已失效导致 fetchWithAuth 跳转，忽略后续错误
             });
         });
     }
@@ -687,12 +1033,16 @@ mounted() {
     .then((response) => response.json())
     .then((data) => {
         this.authSettings = data.auth;
-        this.uploadSettings = data.upload;
-        this.accessSettings = data.access;
+        this.uploadSettings = this.normalizeIpQuerySettings(data.upload);
+        this.accessSettings = {
+            imageTransformEnabled: false,
+            imageTransformAllowedSizes: '',
+            ...data.access
+        };
 
-        // 保存原密码
-        this.oriUserPassword = this.authSettings.user.authCode;
-        this.oriAdminPassword = this.authSettings.admin.adminPassword;
+        // 密码从后端返回为空（安全考虑），记录原始空值
+        this.oriUserPassword = '';
+        this.oriAdminPassword = '';
         this.authSettings.user.confirmNewUserPassword = '';
         this.authSettings.admin.confirmNewAdminPassword = '';
         
@@ -736,22 +1086,16 @@ mounted() {
     border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-/* 表单样式 - 上下排列左对齐 */
+/* 表单样式 - 上下排列左对齐(对齐系统状态卡片风格,无 hover 动效) */
 .first-settings :deep(.el-form) {
-    padding: 16px 20px;
-    background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-radius: 12px;
+    padding: 20px 24px;
+    background-color: var(--glass-bg) !important;
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border-radius: 16px;
     border: 1px solid var(--glass-border);
     margin-bottom: 20px;
     box-shadow: var(--glass-shadow);
-    transition: all 0.3s ease;
-}
-
-.first-settings :deep(.el-form:hover) {
-    box-shadow: var(--glass-shadow-hover);
-    background: var(--glass-bg-hover);
 }
 
 .first-settings :deep(.el-form-item) {
@@ -795,11 +1139,39 @@ mounted() {
 }
 
 .form-item-hint {
-    display: block;
-    margin-top: 8px;
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-    line-height: 1.5;
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 14px;
+    color: var(--el-text-color-regular);
+    line-height: 32px;
+    vertical-align: middle;
+}
+
+.query-param-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+.query-param-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) minmax(160px, 1.4fr) auto;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+}
+
+.response-field-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) auto auto auto;
+    gap: 4px;
+    align-items: center;
+    width: 100%;
+}
+
+.response-field-row :deep(.el-button + .el-button) {
+    margin-left: 0;
 }
 
 .token-title {
@@ -825,9 +1197,9 @@ mounted() {
     border-radius: 12px !important;
     overflow: hidden;
     box-shadow: var(--glass-shadow);
-    background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background-color: var(--glass-bg) !important;
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
     border: 1px solid var(--glass-border);
 }
 
@@ -837,24 +1209,40 @@ mounted() {
 
 .token-table :deep(.el-table__body-wrapper) {
     border-radius: 0 0 12px 12px;
+    background: transparent;
 }
 
 .token-table :deep(.el-table) {
     border-radius: 12px;
+    background: transparent;
 }
 
 .token-table :deep(.el-table__header) {
-    background-color: #f8f9fa;
+    background-color: color-mix(in srgb, var(--el-text-color-primary) 4%, transparent);
 }
 
 .token-table :deep(.el-table th) {
-    background-color: #f8f9fa !important;
-    border-bottom: 1px solid #ebeef5;
+    background-color: color-mix(in srgb, var(--el-text-color-primary) 4%, transparent) !important;
+    border-bottom: 1px solid var(--glass-border);
     text-align: center;
 }
 
 .token-table :deep(.el-table td) {
-    border-bottom: 1px solid #ebeef5;
+    background-color: transparent !important;
+    border-bottom: 1px solid var(--glass-border);
+}
+html.dark .token-table :deep(.el-table th) {
+    background-color: color-mix(in srgb, var(--el-text-color-primary) 5%, transparent) !important;
+}
+html.dark .token-table :deep(.el-table td) {
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.token-table :deep(.el-table__row:hover td) {
+    background-color: color-mix(in srgb, var(--el-text-color-primary) 3%, transparent) !important;
+}
+html.dark .token-table :deep(.el-table__row:hover td) {
+    background-color: color-mix(in srgb, var(--el-text-color-primary) 5%, transparent) !important;
 }
 
 .token-table :deep(.el-table__row:last-child td) {
@@ -910,6 +1298,14 @@ mounted() {
     
     .first-settings :deep(.el-form-item__content) {
         max-width: 100%;
+    }
+
+    .query-param-row {
+        grid-template-columns: 1fr;
+    }
+
+    .response-field-row {
+        grid-template-columns: 1fr auto auto auto;
     }
     
     .token-table-container {
@@ -988,7 +1384,7 @@ mounted() {
 :deep(.el-dialog) {
     border-radius: 12px;
     background-color: var(--dialog-bg-color);
-    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
     box-shadow: var(--dialog-box-shadow);
 }
 </style>

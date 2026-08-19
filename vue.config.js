@@ -18,6 +18,10 @@ module.exports = defineConfig({
   },
   devServer: {
     port: 3000,
+    allowedHosts: 'all',
+    historyApiFallback: {
+      disableDotRule: true,
+    },
     proxy: {
       '/api': {
         target: process.env.VUE_APP_BACKEND_URL,

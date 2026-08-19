@@ -75,7 +75,6 @@ export default {
     bottom: 0;
     background: rgba(0, 0, 0, 0.4);
     z-index: 2000;
-    backdrop-filter: blur(4px);
 }
 .mobile-drawer {
     position: absolute;
@@ -85,28 +84,29 @@ export default {
     width: 280px;
     max-width: calc(85vw - 16px);
     background: var(--el-bg-color);
+    border: 1px solid var(--glass-border);
     border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: none;
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 html.dark .mobile-drawer {
     background: rgba(40, 40, 45, 0.98);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+    box-shadow: none;
 }
 .mobile-drawer-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    background: linear-gradient(135deg, rgba(56, 189, 248, 0.12) 0%, rgba(14, 165, 233, 0.08) 100%);
+    background: color-mix(in srgb, var(--primary-color) 10%, transparent);
     border-bottom: 1px solid var(--el-border-color-lighter);
 }
 .mobile-drawer-title {
     font-size: 15px;
     font-weight: 600;
-    color: #38bdf8;
+    color: var(--primary-color-accent);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -116,7 +116,7 @@ html.dark .mobile-drawer {
     display: inline-block;
     width: 4px;
     height: 16px;
-    background: linear-gradient(180deg, #38bdf8 0%, rgba(14, 165, 233, 0.5) 100%);
+    background: var(--primary-color-accent);
     border-radius: 2px;
 }
 .mobile-drawer-close {
@@ -158,8 +158,8 @@ html.dark .mobile-drawer {
     transform: scale(0.98);
 }
 .mobile-drawer-item.active {
-    background: linear-gradient(135deg, rgba(56, 189, 248, 0.2) 0%, rgba(14, 165, 233, 0.12) 100%);
-    color: #38bdf8;
+    background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+    color: var(--primary-color-accent);
     font-weight: 600;
 }
 .mobile-drawer-item-icon {
@@ -170,7 +170,7 @@ html.dark .mobile-drawer {
 }
 .mobile-drawer-item.active .mobile-drawer-item-icon {
     opacity: 1;
-    color: #38bdf8;
+    color: var(--primary-color-accent);
 }
 .mobile-drawer-back {
     display: flex;

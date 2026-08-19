@@ -92,6 +92,7 @@
                         <el-option label="S3" value="s3"></el-option>
                         <el-option label="Discord" value="discord"></el-option>
                         <el-option label="HuggingFace" value="huggingface"></el-option>
+                        <el-option label="WebDAV" value="webdav"></el-option>
                     </el-select>
                 </el-form-item>
                 <el-form-item :label="$t('sysOthers.webdavChannelName')" v-if="settings.webDAV.uploadChannel && webdavChannelList.length > 1">
@@ -219,22 +220,16 @@ mounted() {
     border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-/* 表单样式 - 上下排列左对齐 */
+/* 表单样式 - 上下排列左对齐(对齐系统状态卡片风格,无 hover 动效) */
 .first-settings :deep(.el-form) {
-    padding: 16px 20px;
-    background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-radius: 12px;
+    padding: 20px 24px;
+    background-color: var(--glass-bg) !important;
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border-radius: 16px;
     border: 1px solid var(--glass-border);
     margin-bottom: 20px;
     box-shadow: var(--glass-shadow);
-    transition: all 0.3s ease;
-}
-
-.first-settings :deep(.el-form:hover) {
-    box-shadow: var(--glass-shadow-hover);
-    background: var(--glass-bg-hover);
 }
 
 .first-settings :deep(.el-form-item) {

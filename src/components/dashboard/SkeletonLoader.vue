@@ -88,6 +88,7 @@ export default {
     width: 100%;
     height: 22vh;
     background: var(--admin-dashboard-imgcard-bg-color);
+    border: 1px solid var(--glass-border);
     border-radius: 12px;
     box-shadow: var(--admin-dashboard-imgcard-shadow);
     overflow: hidden;
@@ -113,7 +114,7 @@ export default {
     left: 0;
     right: 0;
     padding: 15px;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.5));
+    background: rgba(0, 0, 0, 0.5);
 }
 
 .skeleton-text {
@@ -244,10 +245,51 @@ export default {
 
 /* 移动端适配 */
 @media (max-width: 768px) {
+    .skeleton-card {
+        height: 148px;
+        border-radius: 7px;
+    }
+
+    .skeleton-info {
+        padding: 22px 6px 6px;
+    }
+
+    .skeleton-text {
+        height: 11px;
+        width: 68%;
+        border-radius: 3px;
+    }
+
     .list-item {
-        grid-template-columns: 28px 40px 1fr auto;
-        padding: 10px 8px;
-        gap: 8px;
+        box-sizing: border-box;
+        grid-template-columns: 20px 34px 1fr auto;
+        padding: 8px 6px;
+        gap: 6px;
+        height: 50px;
+    }
+
+    .skeleton-checkbox {
+        width: 16px;
+        height: 16px;
+    }
+
+    .skeleton-preview {
+        width: 34px;
+        height: 34px;
+        border-radius: 5px;
+    }
+
+    .skeleton-text-long,
+    .skeleton-text-short,
+    .skeleton-text-tiny {
+        height: 10px;
+        border-radius: 3px;
+    }
+
+    .skeleton-actions {
+        width: 58px;
+        height: 24px;
+        border-radius: 6px;
     }
     
     .list-col-tags,
